@@ -122,3 +122,4 @@ type Theta () =
   
   member this.Reset () = resetTheta.Post ()
 
+  member this.Kill () = thetaProc.Proc.Kill ()
