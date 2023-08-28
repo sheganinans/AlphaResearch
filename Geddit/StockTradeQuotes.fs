@@ -105,12 +105,13 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     use out = LZ4Stream.Encode (f, settings)
     ms.CopyTo out
     out.Flush ()
+    f.Flush ()
     out.Close ()
     f.Close ()
   )
   Wasabi.uploadFile fileName BUCKET fileName
   File.Delete fileName
-
+  
 let toReq (root : string) (day : DateTime) =
   let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
   $"http://127.0.0.1:25510/hist/stock/trade_quote?root={root}&start_date={ds}&end_date={ds}"
