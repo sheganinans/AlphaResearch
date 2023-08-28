@@ -15,32 +15,26 @@ let endDay = DateTime (2023, 08, 01)
 
 let TOTAL_DAYS = (endDay-startDay).Days
 
-type private SyncFinished = class end
-
 let finishedMailbox = MailboxProcessor.Start (fun inbox ->
   async {
     while true do
       let! (root : string) = inbox.Receive ()
-      lock typeof<SyncFinished> (fun () ->
-        use sw = File.AppendText "finished.txt"
-        sw.WriteLine root
-        sw.Flush ())
+      use sw = File.AppendText "finished.txt"
+      sw.WriteLine root
+      sw.Flush ()
       Directory.Delete root
   })
-
-type private SyncCounter = class end
 
 let counterMailbox = MailboxProcessor.Start (fun inbox ->
   let mutable m = Map.empty
   async {
     while true do
-      let! (root : string) = inbox.Receive ()
-      lock typeof<SyncCounter> (fun () ->
-        m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
-        let c = m |> Map.find root
-        printfn $"{root}: %02.4f{100. * (float c / float TOTAL_DAYS)}"
-        if TOTAL_DAYS = c
-        then finishedMailbox.Post root)
+      let! ((root, day) : string * DateTime) = inbox.Receive ()
+      m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
+      let c = m |> Map.find root
+      printfn $"{root}: %02.2f{100. * (float c / float TOTAL_DAYS)}%% %04i{day.Year}-%02i{day.Month}-%02i{day.Day}"
+      if TOTAL_DAYS = c
+      then finishedMailbox.Post root
     }
   )
 
@@ -48,11 +42,15 @@ let finished =
   try File.ReadLines "finished.txt" |> Set.ofSeq
   with _ -> Set.empty
 
+
+type private SyncGo = class end
+
 let go () =
   match Roots.getStockRoots () with
   | Error err -> printfn $"{err}"
   | Result.Ok roots ->
     roots
+    |> Seq.map (fun root -> root.Replace ('/', '.'))
     |> Seq.filter (not << finished.Contains)
     |> Seq.iter (fun root ->
       Directory.CreateDirectory root |> ignore
@@ -63,39 +61,34 @@ let go () =
         |> Set.ofSeq
 
       let mutable noDataAcc = []
+      let mutable disconns = []
+      let mutable errors = []
         
       while trySet.Count <> 0 do
-        let res =
-          trySet
-          |> PSeq.withDegreeOfParallelism 8
-          |> PSeq.map (fun day -> day, StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously)
-          |> PSeq.cache
-        let data = res |> PSeq.filter (function | _, RspStatus.Ok _ -> true | _ -> false)
-        let discons = res |> PSeq.filter (fun (_, r) -> r = RspStatus.Disconnected)
-        let errs = res |> PSeq.filter (function | _, RspStatus.Err _ -> true | _ -> false)
-        let noData = res |> PSeq.filter (fun (_, r) -> r = RspStatus.NoData)
-        data |> PSeq.iter
-          (function
-          | day, RspStatus.Ok data ->
-            counterMailbox.Post root
-            StockTradeQuotes.saveData root day data
-          | _ -> raise (Exception "UNEXP1: This should never happen."))
+        trySet
+        |> PSeq.withDegreeOfParallelism 6
+        |> PSeq.iter (fun day ->
+          match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
+          | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
+            printfn "disconnected!"
+            thetaData.Reset ()
+            disconns <- day:: disconns)
+          | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
+            counterMailbox.Post (root, day)
+            noDataAcc <- day :: noDataAcc)
+          | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
+            printfn $"{err}"
+            errors <- day :: errors)
+          | RspStatus.Ok data ->
+            counterMailbox.Post (root, day)
+            StockTradeQuotes.saveData root day data)
 
-        noDataAcc <- List.append noDataAcc (noData |> List.ofSeq)
-        trySet <- discons |> PSeq.map fst |> Set.ofSeq |> Set.union (errs |> Seq.map fst |> Set.ofSeq)
-        
-        if trySet.Count <> 0
-        then
-          discord.SendNotification "errs found, restarting thetadata." |> Async.Start
-          thetaData.Reset ()
-          Async.Sleep 3000 |> Async.RunSynchronously
-      
+        trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
+          
       (
         let noDataFile = $"{root}.nodata.txt"
         use sw = new StreamWriter (noDataFile)
-        noDataAcc |> List.iter (fun d ->
-          counterMailbox.Post root
-          sw.WriteLine (d.ToString ()))
+        noDataAcc |> List.iter (fun d -> sw.WriteLine (d.ToString ()))
         sw.Close ()
         Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
         File.Delete noDataFile
