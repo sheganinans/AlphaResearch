@@ -38,7 +38,9 @@ match Roots.getStockRoots () with
       async {
         data |> PSeq.iter
           (function
-          | day, RspStatus.Ok data -> StockTradeQuotes.saveData root day data
+          | day, RspStatus.Ok data ->
+            printfn $"saving, {root}: {day}"
+            StockTradeQuotes.saveData root day data
           | _ -> raise (Exception "UNEXP1: This should never happen."))
       } |> Async.Start
 

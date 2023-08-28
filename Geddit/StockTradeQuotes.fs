@@ -63,7 +63,6 @@ let rspToData (date : DateTime) (rsp : Rsp<float [] []>) : Data =
   
   
 let saveData (symbol : string) (date : DateTime) (data : Data) =
-  printfn $"{data}"
   let cols : Column [] =
     [|
       Column<DateTime> "TimeOfTrade"

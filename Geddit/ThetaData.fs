@@ -3,7 +3,6 @@ module Geddit.ThetaData
 open System
 open System.Diagnostics
 open System.Net.Http
-open System.Threading
 
 open Discord
 open FSharp.Json
@@ -94,7 +93,7 @@ type private ThetaProc () =
   let theta = new Process ()
   do
     discord.SendAlert "starting new theta terminal" |> Async.Start
-    theta.StartInfo.WorkingDirectory <- "/home/jinn"
+    theta.StartInfo.WorkingDirectory <- "/home/ec2-user"
     theta.StartInfo.FileName <- "java"
     theta.StartInfo.Arguments <- "-jar ThetaTerminal.jar creds=creds"
     theta.Start () |> ignore
