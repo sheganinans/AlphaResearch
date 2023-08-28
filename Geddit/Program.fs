@@ -38,7 +38,7 @@ let counterMailbox = MailboxProcessor.Start (fun inbox ->
       lock typeof<SyncCounter> (fun () ->
         m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
         let c = m |> Map.find root
-        printfn $"c: {c}, {TOTAL_DAYS}"
+        printfn $"{root}: %02.4f{100. * (float c / float TOTAL_DAYS)}"
         if TOTAL_DAYS = c
         then finishedMailbox.Post root)
     }
@@ -54,8 +54,7 @@ let go () =
   | Result.Ok roots ->
     roots
     |> Seq.filter (not << finished.Contains)
-    |> PSeq.withDegreeOfParallelism 8
-    |> PSeq.iter (fun root ->
+    |> Seq.iter (fun root ->
       Directory.CreateDirectory root |> ignore
       discord.SendNotification $"starting: {root}" |> Async.Start
       let mutable trySet =
@@ -68,13 +67,14 @@ let go () =
       while trySet.Count <> 0 do
         let res =
           trySet
-          |> Seq.map (fun day -> day, StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously)
-          |> Seq.cache
-        let data = res |> Seq.filter (function | _, RspStatus.Ok _ -> true | _ -> false)
-        let discons = res |> Seq.filter (fun (_, r) -> r = RspStatus.Disconnected)
-        let errs = res |> Seq.filter (function | _, RspStatus.Err _ -> true | _ -> false)
-        let noData = res |> Seq.filter (fun (_, r) -> r = RspStatus.NoData)
-        data |> Seq.iter
+          |> PSeq.withDegreeOfParallelism 8
+          |> PSeq.map (fun day -> day, StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously)
+          |> PSeq.cache
+        let data = res |> PSeq.filter (function | _, RspStatus.Ok _ -> true | _ -> false)
+        let discons = res |> PSeq.filter (fun (_, r) -> r = RspStatus.Disconnected)
+        let errs = res |> PSeq.filter (function | _, RspStatus.Err _ -> true | _ -> false)
+        let noData = res |> PSeq.filter (fun (_, r) -> r = RspStatus.NoData)
+        data |> PSeq.iter
           (function
           | day, RspStatus.Ok data ->
             counterMailbox.Post root
@@ -82,7 +82,7 @@ let go () =
           | _ -> raise (Exception "UNEXP1: This should never happen."))
 
         noDataAcc <- List.append noDataAcc (noData |> List.ofSeq)
-        trySet <- discons |> Seq.map fst |> Set.ofSeq |> Set.union (errs |> Seq.map fst |> Set.ofSeq)
+        trySet <- discons |> PSeq.map fst |> Set.ofSeq |> Set.union (errs |> Seq.map fst |> Set.ofSeq)
         
         if trySet.Count <> 0
         then

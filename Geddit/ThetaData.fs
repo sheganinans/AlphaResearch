@@ -93,7 +93,11 @@ type private ThetaProc () =
   let theta = new Process ()
   do
     discord.SendAlert "starting new theta terminal" |> Async.Start
+    #if DEBUG 
     theta.StartInfo.WorkingDirectory <- "/home/jinn"
+    #else
+    theta.StartInfo.WorkingDirectory <- "/home/ec2-user"
+    #endif
     theta.StartInfo.FileName <- "java"
     theta.StartInfo.Arguments <- "-jar ThetaTerminal.jar creds=creds"
     theta.Start () |> ignore
