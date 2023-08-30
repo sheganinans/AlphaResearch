@@ -75,12 +75,12 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
               sw.WriteLine (day.ToString ())
               sw.Flush ()
             )
-            let aMillSecs = if avg = 0. then 0 else (DateTime.Now - now).Milliseconds
+            let aMillSecs = (DateTime.Now - now).Milliseconds
             now <- DateTime.Now
-            avg <- (avg + float (aMillSecs / 1000)) / 2.
+            avg <- (avg + float aMillSecs) / 2.
             c)
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} {avg}"
+        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %0.4f{avg}ms"
         match data with
         | NoData ->
           lock typeof<SyncCount> (fun () ->
