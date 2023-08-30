@@ -32,6 +32,7 @@ let roots =
 type private SyncFinish = class end
 type private SyncCount = class end
 type private SyncNoData = class end
+type private SyncDates = class end
 type private SyncGo = class end
 
 let mutable nextSymbol = fun () -> ()
@@ -67,19 +68,20 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         let! ((root, day, data) : string * DateTime * DataType) = inbox.Receive ()
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
         async {
-          lock typeof<SyncNoData> (fun () ->
-            match data with
-            | NoData ->
-                let noDataFile = $"{root}.nodata.txt"
-                use sw = File.AppendText noDataFile
-                sw.WriteLine (day.ToString ())
-                sw.Flush ()
-                sw.Close ()
-            | Data ->
-              use sw = File.AppendText $"{root}.dates.txt"
+          match data with
+          | NoData ->
+            lock typeof<SyncNoData> (fun () ->
+              let noDataFile = $"{root}.nodata.txt"
+              use sw = File.AppendText noDataFile
               sw.WriteLine (day.ToString ())
               sw.Flush ()
               sw.Close ())
+          | Data -> ()
+          lock typeof<SyncDates> (fun () ->
+            use sw = File.AppendText $"{root}.dates.txt"
+            sw.WriteLine (day.ToString ())
+            sw.Flush ()
+            sw.Close ())
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
