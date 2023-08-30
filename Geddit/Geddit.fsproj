@@ -32,4 +32,9 @@
       </Reference>
     </ItemGroup>
 
+
+    <PropertyGroup>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
+    </PropertyGroup>
+    
 </Project>

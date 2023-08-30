@@ -62,6 +62,9 @@ let inline extract<'a, 'b>
     (day : DateTime) : 'b RspStatus Async =
   async {
     match! f root day |> reqThetaData<'a> |> Async.AwaitTask with
+    | RspStatus.NoData -> return RspStatus.NoData
+    | RspStatus.Disconnected -> return RspStatus.Disconnected
+    | RspStatus.Err e -> return RspStatus.Err e
     | RspStatus.Ok rsp ->
       let mutable disconn = false
       let mutable retErr = None
@@ -84,9 +87,6 @@ let inline extract<'a, 'b>
       | true, _ -> return RspStatus.Disconnected
       | _, Some err -> return RspStatus.Err err
       | _, _ -> return RspStatus.Ok data
-    | RspStatus.NoData -> return RspStatus.NoData
-    | RspStatus.Disconnected -> return RspStatus.Disconnected
-    | RspStatus.Err e -> return RspStatus.Err e
   }
 
 type private ThetaProc () =

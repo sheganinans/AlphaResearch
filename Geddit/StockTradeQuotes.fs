@@ -109,8 +109,6 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     out.Close ()
     f.Close ()
   )
-  Wasabi.uploadFile fileName BUCKET fileName
-  File.Delete fileName
   
 let toReq (root : string) (day : DateTime) =
   let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"

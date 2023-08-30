@@ -69,8 +69,6 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
   ms.CopyTo out
   out.Flush ()
   out.Close ()
-  uploadFile fileName BUCKET $"{symbol}/{fileName}"
-  File.Delete fileName
 
 let toReq (root : string) (day : DateTime) =
   let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
