@@ -43,10 +43,9 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
   async {
     while true do
       let! (root : string) = inbox.Receive ()
-      printfn $"finished: {root}"
       lock typeof<SyncFinish> (fun () ->
         try
-          Async.Sleep 2000 |> Async.RunSynchronously
+          printfn $"finished: {root}"
           let noDataFile = $"{root}.nodata.txt"
           Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
           printfn "uploaded no data file"
