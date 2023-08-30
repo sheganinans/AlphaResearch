@@ -61,7 +61,7 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
 and counterMailbox = MailboxProcessor.Start (fun inbox ->
   let mutable m = Map.empty
   let mutable now = DateTime.Now
-  let mutable avg = 0.
+  let mutable ms = 0.
   async {
     try
       while true do
@@ -79,21 +79,17 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
           async {
             Wasabi.uploadFile f StockTradeQuotes.BUCKET f
             File.Delete f
+            use sw = File.AppendText $"{root}.dates.txt"
+            sw.WriteLine (day.ToString ())
+            sw.Flush ()
           } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
             m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
-            let c = m |> Map.find root
-            (
-              use sw = File.AppendText $"{root}.dates.txt"
-              sw.WriteLine (day.ToString ())
-              sw.Flush ()
-            )
-            let aMillSecs = (DateTime.Now - now).Milliseconds
+            ms <- float (DateTime.Now - now).Milliseconds
             now <- DateTime.Now
-            avg <- (avg + float aMillSecs) / 2.
-            c)
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %04.2f{avg}ms"
+            m |> Map.find root)
+        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %04.2f{ms}ms"
         if TOTAL_DAYS = c then finishedMailbox.Post root
     with err -> discord.SendAlert $"counterMailbox: {err}" |> Async.Start
   })
@@ -121,7 +117,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           
         while trySet.Count <> 0 do
           trySet
-          |> PSeq.withDegreeOfParallelism 8
+          |> PSeq.withDegreeOfParallelism 6
           |> PSeq.iter (fun day ->
             match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
             | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
