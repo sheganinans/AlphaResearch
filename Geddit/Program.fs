@@ -33,8 +33,6 @@ type private SyncFinish = class end
 type private SyncCount = class end
 type private SyncGo = class end
 
-printfn "init mailboxes"
-
 let mutable nextSymbol = fun () -> ()
 
 type DataType = NoData | Data
@@ -51,15 +49,19 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
           printfn "uploaded no data file"
           File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
+          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
+          Directory.Delete root
+
           use sw = File.AppendText "finished.txt"
           sw.WriteLine root
-          Directory.Delete (root, true)
           nextSymbol ()
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
 
 and counterMailbox = MailboxProcessor.Start (fun inbox ->
   let mutable m = Map.empty
+  let mutable now = DateTime.Now
+  let mutable avg = 0.
   async {
     try
       while true do
@@ -73,9 +75,12 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
               sw.WriteLine (day.ToString ())
               sw.Flush ()
             )
+            let aMillSecs = if avg = 0. then 0 else (DateTime.Now - now).Milliseconds
+            now <- DateTime.Now
+            avg <- (avg + float (aMillSecs / 1000)) / 2.
             c)
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f}"
+        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} {avg}"
         match data with
         | NoData ->
           lock typeof<SyncCount> (fun () ->
@@ -148,9 +153,6 @@ and symbolMailbox = MailboxProcessor.Start (fun inbox ->
 
 nextSymbol <- symbolMailbox.Post
 
-printfn "sleep"
 Thread.Sleep 1000
-  
-printfn "start!"
 symbolMailbox.Post ()
 Thread.Sleep -1

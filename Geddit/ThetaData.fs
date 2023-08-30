@@ -49,9 +49,7 @@ let reqThetaData<'t> (url : string) =
         | Some "NO_DATA" -> return NoData
         | Some "DISCONNECTED" -> return Disconnected
         | _ -> return Err { ErrType = err.error_type; ErrDescrip = err.error_msg }
-    with err ->
-      discord.SendAlert $"{err}" |> Async.Start
-      return Disconnected
+    with _ -> return Disconnected
   }
   
 let inline extract<'a, 'b>
@@ -104,6 +102,8 @@ type private ThetaProc () =
     
   member this.Proc = theta
 
+type private SyncTheta = class end
+
 type Theta () =
   let mutable thetaProc = ThetaProc ()
 
@@ -113,15 +113,16 @@ type Theta () =
       while true do
         let! () = inbox.Receive ()
 
-        if (DateTime.Now - lastTime).Seconds > 10
-        then
-          discord.SendAlert "killing thetadata." |> Async.Start
-          let td = thetaProc.Proc
-          td.Kill ()
-          td.Dispose ()
-          thetaProc <- ThetaProc ()
+        lock typeof<SyncTheta> (fun () ->
+          if (DateTime.Now - lastTime).Seconds > 10
+          then
+            discord.SendAlert "killing thetadata." |> Async.Start
+            let td = thetaProc.Proc
+            td.Kill ()
+            td.Dispose ()
+            thetaProc <- ThetaProc ()
 
-        lastTime <- DateTime.Now
+          lastTime <- DateTime.Now)
     })
   
   member this.Reset () = resetTheta.Post ()
