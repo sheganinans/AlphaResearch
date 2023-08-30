@@ -47,6 +47,10 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
       lock typeof<SyncFinish> (fun () ->
         try
           Async.Sleep 2000 |> Async.RunSynchronously
+          let noDataFile = $"{root}.nodata.txt"
+          Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+          printfn "uploaded no data file"
+          File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
           use sw = File.AppendText "finished.txt"
           sw.WriteLine root
@@ -74,7 +78,13 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
         printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f}"
         match data with
-        | NoData -> ()
+        | NoData ->
+          lock typeof<SyncCount> (fun () ->
+            let noDataFile = $"{root}.nodata.txt"
+            use sw = File.AppendText noDataFile
+            sw.WriteLine (day.ToString ())
+            sw.Flush ()
+            sw.Close ())
         | Data ->
           Wasabi.uploadFile f StockTradeQuotes.BUCKET f
           File.Delete f
@@ -99,8 +109,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           |> Seq.filter (not << skipDates.Contains)
           |> Set.ofSeq
           
-        printfn $"{trySet}"
-
         let mutable noDataAcc = []
         let mutable disconns = []
         let mutable errors = []
@@ -123,15 +131,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
               counterMailbox.Post (root, day, Data)))
           
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
-        
-        let noDataFile = $"{root}.nodata.txt"
-        use sw = new StreamWriter (noDataFile)
-        noDataAcc |> List.filter (not << skipDates.Contains) |> List.iter (fun d ->
-          sw.WriteLine (d.ToString ()))
-        sw.Close ()
-        Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
-        printfn "uploaded no data file"
-        File.Delete noDataFile
     with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
   })
   
