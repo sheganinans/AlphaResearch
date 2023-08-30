@@ -109,7 +109,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           trySet
           |> PSeq.withDegreeOfParallelism 8
           |> PSeq.iter (fun day ->
-            printfn $"req: {root} {day}"
             match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
             | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
             | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
