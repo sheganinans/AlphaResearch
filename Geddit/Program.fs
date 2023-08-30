@@ -66,6 +66,20 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
     try
       while true do
         let! ((root, day, data) : string * DateTime * DataType) = inbox.Receive ()
+        let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
+        match data with
+        | NoData ->
+          lock typeof<SyncCount> (fun () ->
+            let noDataFile = $"{root}.nodata.txt"
+            use sw = File.AppendText noDataFile
+            sw.WriteLine (day.ToString ())
+            sw.Flush ()
+            sw.Close ())
+        | Data ->
+          async {
+            Wasabi.uploadFile f StockTradeQuotes.BUCKET f
+            File.Delete f
+          } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
             m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
@@ -79,19 +93,7 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
             now <- DateTime.Now
             avg <- (avg + float aMillSecs) / 2.
             c)
-        let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %0.4f{avg}ms"
-        match data with
-        | NoData ->
-          lock typeof<SyncCount> (fun () ->
-            let noDataFile = $"{root}.nodata.txt"
-            use sw = File.AppendText noDataFile
-            sw.WriteLine (day.ToString ())
-            sw.Flush ()
-            sw.Close ())
-        | Data ->
-          Wasabi.uploadFile f StockTradeQuotes.BUCKET f
-          File.Delete f
+        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %04.2f{avg}ms"
         if TOTAL_DAYS = c then finishedMailbox.Post root
     with err -> discord.SendAlert $"counterMailbox: {err}" |> Async.Start
   })
