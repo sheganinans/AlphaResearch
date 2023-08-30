@@ -79,28 +79,34 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
       Column<byte> "AskExchange"
     |]
   let fileName = $"{symbol}/%04i{date.Year}-%02i{date.Month}-%02i{date.Day}.parquet.lz4"
-  use ms = new MemoryStream ()
-  use f = new ParquetFileWriter (ms, cols)
-  use rowGroup = f.AppendRowGroup ()
-  use w = rowGroup.NextColumn().LogicalWriter<DateTime> () in w.WriteBatch data.TimeOfTrade
-  use w = rowGroup.NextColumn().LogicalWriter<int> () in w.WriteBatch data.Sequence
-  use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.Size
-  use w = rowGroup.NextColumn().LogicalWriter<uint16> () in w.WriteBatch data.Condition
-  use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Price
-  use w = rowGroup.NextColumn().LogicalWriter<DateTime> () in w.WriteBatch data.TimeOfQuote
-  use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.BidSize
-  use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Bid
-  use w = rowGroup.NextColumn().LogicalWriter<byte> () in w.WriteBatch data.BidExchange
-  use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.AskSize
-  use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Ask
-  use w = rowGroup.NextColumn().LogicalWriter<byte> () in w.WriteBatch data.AskExchange
+  let ms = new MemoryStream ()
+  (
+    use f = new ParquetFileWriter (ms, cols, leaveOpen = true)
+    use rowGroup = f.AppendRowGroup ()
+    use w = rowGroup.NextColumn().LogicalWriter<DateTime> () in w.WriteBatch data.TimeOfTrade
+    use w = rowGroup.NextColumn().LogicalWriter<int> () in w.WriteBatch data.Sequence
+    use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.Size
+    use w = rowGroup.NextColumn().LogicalWriter<uint16> () in w.WriteBatch data.Condition
+    use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Price
+    use w = rowGroup.NextColumn().LogicalWriter<DateTime> () in w.WriteBatch data.TimeOfQuote
+    use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.BidSize
+    use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Bid
+    use w = rowGroup.NextColumn().LogicalWriter<byte> () in w.WriteBatch data.BidExchange
+    use w = rowGroup.NextColumn().LogicalWriter<uint> () in w.WriteBatch data.AskSize
+    use w = rowGroup.NextColumn().LogicalWriter<float> () in w.WriteBatch data.Ask
+    use w = rowGroup.NextColumn().LogicalWriter<byte> () in w.WriteBatch data.AskExchange
+  )
   let settings = LZ4EncoderSettings ()
   settings.CompressionLevel <- LZ4Level.L03_HC
-  use out = new MemoryStream ()
-  use lz = LZ4Stream.Encode (out, settings)
+  let out = new MemoryStream ()
+  use lz = LZ4Stream.Encode (out, settings, leaveOpen = true)
+  ms.Seek (0, SeekOrigin.Begin) |> ignore
   ms.CopyTo lz
+  out.Seek (0, SeekOrigin.Begin) |> ignore
   Wasabi.uploadStream out BUCKET fileName
-  
+  out.Dispose ()
+  ms.Dispose ()
+
 let toReq (root : string) (day : DateTime) =
   let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
   $"http://127.0.0.1:25510/hist/stock/trade_quote?root={root}&start_date={ds}&end_date={ds}"
