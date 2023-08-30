@@ -41,6 +41,7 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
   async {
     while true do
       let! (root : string) = inbox.Receive ()
+      do! Async.Sleep 500
       lock typeof<SyncFinish> (fun () ->
         try
           printfn $"finished: {root}"
