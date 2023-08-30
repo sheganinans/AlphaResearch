@@ -5,28 +5,24 @@ open System.Diagnostics
 open System.Net.Http
 
 open Discord
-open FSharp.Json
+open SpanJson
 
-type Header =
-  {
-    id         : int
-    latency_ms : int
-    error_type : string option
-    error_msg  : string option
-    next_page  : string option
-    format     : string [] option
-  }
+type Header () = 
+    member val id : int = 0 with get,set
+    member val latency_ms : int = 0 with get, set
+    member val error_type : string = null with get, set
+    member val error_msg  : string = null with get, set
+    member val next_page  : string = null with get, set
+    member val format     : string [] = [||] with get, set
 
-type Rsp<'t> =
-  {
-    header   : Header
-    response : 't
-  }
+type Rsp<'t> () =
+    member val header   : Header = Header () with get, set
+    member val response : 't = Unchecked.defaultof<'t> with get, set
 
 type ErrDescip =
   {
-    ErrType    : string option
-    ErrDescrip : string option
+    ErrType    : string
+    ErrDescrip : string
   }
 
 type RspStatus<'t> =
@@ -42,12 +38,12 @@ let reqThetaData<'t> (url : string) =
       client.DefaultRequestHeaders.Add ("Accept", "application/json")
       let! response = client.GetAsync url
       let! c = response.Content.ReadAsStringAsync ()
-      try return Ok <| Json.deserialize<Rsp<'t>> c
+      try return Ok <| JsonSerializer.Generic.Utf16.Deserialize<Rsp<'t>> c
       with _ ->
-        let err = (Json.deserialize<Rsp<int []>> c).header
+        let err = (JsonSerializer.Generic.Utf16.Deserialize<Rsp<int []>> c).header
         match err.error_type with
-        | Some "NO_DATA" -> return NoData
-        | Some "DISCONNECTED" -> return Disconnected
+        | "NO_DATA" -> return NoData
+        | "DISCONNECTED" -> return Disconnected
         | _ -> return Err { ErrType = err.error_type; ErrDescrip = err.error_msg }
     with _ -> return Disconnected
   }
@@ -69,15 +65,15 @@ let inline extract<'a, 'b>
       let mutable data = g day rsp
       let mutable nextPage = rsp.header.next_page
       while
-          not <| nextPage.IsNone &&
-          nextPage <> Some "null" &&
+          not <| isNull nextPage &&
+          nextPage <> "null" &&
           not retErr.IsSome &&
           not disconn do
-        let! rsp = reqThetaData<'a> nextPage.Value |> Async.AwaitTask
+        let! rsp = reqThetaData<'a> nextPage |> Async.AwaitTask
         match rsp with
         | Disconnected -> disconn <- true
         | Err err -> retErr <- Some err
-        | NoData -> nextPage <- None
+        | NoData -> nextPage <- null
         | Ok rsp ->
           nextPage <- rsp.header.next_page
           g day rsp |> h data
@@ -91,11 +87,7 @@ type private ThetaProc () =
   let theta = new Process ()
   do
     discord.SendAlert "starting new theta terminal" |> Async.Start
-    #if DEBUG 
-    theta.StartInfo.WorkingDirectory <- "/home/jinn"
-    #else
-    theta.StartInfo.WorkingDirectory <- "/home/ec2-user"
-    #endif
+    theta.StartInfo.WorkingDirectory <- Environment.GetEnvironmentVariable "HOME"
     theta.StartInfo.FileName <- "java"
     theta.StartInfo.Arguments <- "-jar ThetaTerminal.jar creds=creds"
     theta.Start () |> ignore
