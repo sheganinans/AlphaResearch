@@ -52,8 +52,10 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
           printfn "uploaded no data file"
           File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
+          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously
           use sw = File.AppendText "finished.txt"
           sw.WriteLine root
+          Directory.Delete (root, true)
           nextSymbol ()
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
@@ -77,6 +79,8 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
               sw.Flush ()
               sw.Close ())
           | Data -> ()
+          Wasabi.uploadPath f StockTradeQuotes.BUCKET f
+          File.Delete f
           lock typeof<SyncDates> (fun () ->
             use sw = File.AppendText $"{root}.dates.txt"
             sw.WriteLine (day.ToString ())
@@ -99,6 +103,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
     try
       while true do
         let! (root : string) = inbox.Receive ()
+        Directory.CreateDirectory root |> ignore
         discord.SendNotification $"starting: {root}" |> Async.Start
         let skipDates =
           try File.ReadLines $"{root}.dates.txt" |> Seq.map DateTime.Parse |> Set.ofSeq

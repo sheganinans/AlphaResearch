@@ -107,7 +107,6 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     out.Flush ()
     f.Flush ()
     out.Close ()
-    Wasabi.uploadStream f BUCKET fileName
     f.Close ()
   )
   
