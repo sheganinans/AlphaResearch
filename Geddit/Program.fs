@@ -67,24 +67,22 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
       while true do
         let! ((root, day, data) : string * DateTime * DataType) = inbox.Receive ()
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
-        match data with
-        | NoData ->
-          async {
-            lock typeof<SyncCount> (fun () ->
-              let noDataFile = $"{root}.nodata.txt"
-              use sw = File.AppendText noDataFile
+        async {
+          match data with
+          | NoData ->
+              lock typeof<SyncCount> (fun () ->
+                let noDataFile = $"{root}.nodata.txt"
+                use sw = File.AppendText noDataFile
+                sw.WriteLine (day.ToString ())
+                sw.Flush ()
+                sw.Close ())            
+          | Data ->
+              Wasabi.uploadFile f StockTradeQuotes.BUCKET f
+              File.Delete f
+              use sw = File.AppendText $"{root}.dates.txt"
               sw.WriteLine (day.ToString ())
               sw.Flush ()
-              sw.Close ())            
-          } |> Async.Start
-        | Data ->
-          async {
-            Wasabi.uploadFile f StockTradeQuotes.BUCKET f
-            File.Delete f
-            use sw = File.AppendText $"{root}.dates.txt"
-            sw.WriteLine (day.ToString ())
-            sw.Flush ()
-          } |> Async.Start
+        } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
             m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
