@@ -31,6 +31,7 @@ let roots =
 
 type private SyncFinish = class end
 type private SyncCount = class end
+type private SyncNoData = class end
 type private SyncGo = class end
 
 let mutable nextSymbol = fun () -> ()
@@ -46,13 +47,10 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
         try
           printfn $"finished: {root}"
           let noDataFile = $"{root}.nodata.txt"
-          Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+          Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
           printfn "uploaded no data file"
           File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
-          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
-          Directory.Delete root
-
           use sw = File.AppendText "finished.txt"
           sw.WriteLine root
           nextSymbol ()
@@ -69,20 +67,19 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         let! ((root, day, data) : string * DateTime * DataType) = inbox.Receive ()
         let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
         async {
-          match data with
-          | NoData ->
-            lock typeof<SyncCount> (fun () ->
-              let noDataFile = $"{root}.nodata.txt"
-              use sw = File.AppendText noDataFile
+          lock typeof<SyncNoData> (fun () ->
+            match data with
+            | NoData ->
+                let noDataFile = $"{root}.nodata.txt"
+                use sw = File.AppendText noDataFile
+                sw.WriteLine (day.ToString ())
+                sw.Flush ()
+                sw.Close ()
+            | Data ->
+              use sw = File.AppendText $"{root}.dates.txt"
               sw.WriteLine (day.ToString ())
               sw.Flush ()
-              sw.Close ())            
-          | Data ->
-            Wasabi.uploadFile f StockTradeQuotes.BUCKET f
-            File.Delete f
-            use sw = File.AppendText $"{root}.dates.txt"
-            sw.WriteLine (day.ToString ())
-            sw.Flush ()
+              sw.Close ())
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
@@ -100,7 +97,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
     try
       while true do
         let! (root : string) = inbox.Receive ()
-        Directory.CreateDirectory root |> ignore
         discord.SendNotification $"starting: {root}" |> Async.Start
         let skipDates =
           try File.ReadLines $"{root}.dates.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
