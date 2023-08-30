@@ -104,7 +104,11 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     use f = File.Create fileName
     use out = LZ4Stream.Encode (f, settings)
     ms.CopyTo out
+    out.Flush ()
+    f.Flush ()
+    out.Close ()
     Wasabi.uploadStream f BUCKET fileName
+    f.Close ()
   )
   
 let toReq (root : string) (day : DateTime) =
