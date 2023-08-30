@@ -117,21 +117,25 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           
         while trySet.Count <> 0 do
           trySet
-          |> PSeq.withDegreeOfParallelism 6
-          |> PSeq.iter (fun day ->
-            match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
-            | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
-            | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
-              printfn "disconnected!"
-              thetaData.Reset ()
-              disconns <- day:: disconns)
-            | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
-              counterMailbox.Post (root, day, NoData)
-              noDataAcc <- day :: noDataAcc)
-            | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
-              StockTradeQuotes.saveData root day data
-              counterMailbox.Post (root, day, Data)))
-          
+          |> Seq.chunkBySize 16
+          |> PSeq.withDegreeOfParallelism 3
+          |> PSeq.iter (fun chunk ->
+            chunk
+            |> PSeq.withDegreeOfParallelism 2
+            |> PSeq.iter (fun day ->
+              match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
+              | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
+              | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
+                printfn "disconnected!"
+                thetaData.Reset ()
+                disconns <- day:: disconns)
+              | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
+                counterMailbox.Post (root, day, NoData)
+                noDataAcc <- day :: noDataAcc)
+              | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
+                StockTradeQuotes.saveData root day data
+                counterMailbox.Post (root, day, Data))))
+            
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
     with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
   })
