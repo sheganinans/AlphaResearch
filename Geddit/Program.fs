@@ -118,7 +118,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
         while trySet.Count <> 0 do
           trySet
           |> Seq.chunkBySize 16
-          |> PSeq.withDegreeOfParallelism 3
+          |> PSeq.withDegreeOfParallelism 4
           |> PSeq.iter (fun chunk ->
             chunk
             |> PSeq.withDegreeOfParallelism 2
@@ -126,7 +126,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
               match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
               | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
               | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
-                printfn "disconnected!"
                 thetaData.Reset ()
                 disconns <- day:: disconns)
               | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->

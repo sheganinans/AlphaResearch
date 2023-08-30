@@ -89,7 +89,7 @@ type private ThetaProc () =
     discord.SendAlert "starting new theta terminal" |> Async.Start
     theta.StartInfo.WorkingDirectory <- Environment.GetEnvironmentVariable "HOME"
     theta.StartInfo.FileName <- "java"
-    theta.StartInfo.Arguments <- "-jar ThetaTerminal.jar creds=creds"
+    theta.StartInfo.Arguments <- "-Xmx4096m -jar ThetaTerminal.jar creds=creds"
     theta.Start () |> ignore
     
   member this.Proc = theta
@@ -108,6 +108,7 @@ type Theta () =
         lock typeof<SyncTheta> (fun () ->
           if (DateTime.Now - lastTime).Seconds > 10
           then
+            printfn "killing thetadata."
             discord.SendAlert "killing thetadata." |> Async.Start
             let td = thetaProc.Proc
             td.Kill ()
