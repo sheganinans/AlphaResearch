@@ -43,17 +43,16 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
   async {
     while true do
       let! (root : string) = inbox.Receive ()
-      do! Async.Sleep 500
       lock typeof<SyncFinish> (fun () ->
         try
+          Async.Sleep 500 |> Async.RunSynchronously
           printfn $"finished: {root}"
           let noDataFile = $"{root}.nodata.txt"
           Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
           printfn "uploaded no data file"
           File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
-          use sw = File.AppendText "finished.txt"
-          sw.WriteLine root
+          using (File.AppendText "finished.txt") (fun sw ->  sw.WriteLine root)
           nextSymbol ()
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
@@ -70,18 +69,13 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         async {
           match data with
           | NoData ->
-            lock typeof<SyncNoData> (fun () ->
-              let noDataFile = $"{root}.nodata.txt"
-              use sw = File.AppendText noDataFile
-              sw.WriteLine (day.ToString ())
-              sw.Flush ()
-              sw.Close ())
+            lock typeof<SyncNoData>
+              (fun () -> using (File.AppendText $"{root}.nodata.txt")
+                           (fun sw -> sw.WriteLine (day.ToString ())))
           | Data -> ()
-          lock typeof<SyncDates> (fun () ->
-            use sw = File.AppendText $"{root}.dates.txt"
-            sw.WriteLine (day.ToString ())
-            sw.Flush ()
-            sw.Close ())
+          lock typeof<SyncDates>
+            (fun () -> using (File.AppendText $"{root}.dates.txt")
+                         (fun sw -> sw.WriteLine (day.ToString ())))
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
