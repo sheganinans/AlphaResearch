@@ -46,13 +46,13 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
       do! Async.Sleep 500
       lock typeof<SyncFinish> (fun () ->
         try
+          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
           printfn $"finished: {root}"
           let noDataFile = $"{root}.nodata.txt"
           Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
           printfn "uploaded no data file"
           File.Delete noDataFile
           File.Delete $"{root}.dates.txt"
-          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
           Directory.Delete root
           using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
           nextSymbol ()
@@ -61,8 +61,6 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
 
 and counterMailbox = MailboxProcessor.Start (fun inbox ->
   let mutable m = Map.empty
-  let mutable now = DateTime.Now
-  let mutable ms = 0.
   async {
     try
       while true do
@@ -87,10 +85,7 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         let c =
           lock typeof<SyncCount> (fun () ->
             m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
-            ms <- float (DateTime.Now - now).Milliseconds
-            now <- DateTime.Now
             m |> Map.find root)
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %04.2f{ms}ms"
         if TOTAL_DAYS = c then finishedMailbox.Post root
     with err -> discord.SendAlert $"counterMailbox: {err}" |> Async.Start
   })
