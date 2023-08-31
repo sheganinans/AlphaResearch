@@ -18,6 +18,7 @@ type Discord () =
 
   member this.SendAlert (m : string) =
     async {
+      printfn $"%s{m}"
       do!
         discord.GetGuild(guild).GetTextChannel(channel).SendMessageAsync $"<@{user_id}>\n```{m[..1950]}\n```"
         |> Async.AwaitTask
