@@ -46,12 +46,15 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
       lock typeof<SyncFinish> (fun () ->
         try
           nextSymbol ()
-          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 20 |> Async.RunSynchronously 
+          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 50 |> Async.RunSynchronously 
           printfn $"finished: {root}"
-          let noDataFile = $"{root}.nodata.txt"
-          Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
-          printfn "uploaded no data file"
-          File.Delete noDataFile
+          async {
+            do! Async.Sleep 3000
+            let noDataFile = $"{root}.nodata.txt"
+            Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+            printfn "uploaded nodata file"
+            File.Delete noDataFile            
+            } |> Async.Start
           File.Delete $"{root}.dates.txt"
           Directory.Delete root
           using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
