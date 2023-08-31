@@ -71,20 +71,18 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         async {
           match data with
           | NoData ->
+            let noDataFile = $"{root}.nodata.txt"
             lock typeof<SyncNoData> (fun () ->
-              let noDataFile = $"{root}.nodata.txt"
-              use sw = File.AppendText noDataFile
-              sw.WriteLine (day.ToString ())
-              sw.Flush ()
-              sw.Close ())            
+              using (File.AppendText noDataFile) (fun sw ->
+                sw.WriteLine (day.ToString ())
+                sw.Flush ()))
           | Data ->
             Wasabi.uploadFile f StockTradeQuotes.BUCKET f
             File.Delete f
-            lock typeof<SyncDates>
-              (fun () ->
-                using (File.AppendText $"{root}.dates.txt") (fun sw ->
-                  sw.WriteLine (day.ToString ())
-                  sw.Flush ()))
+            lock typeof<SyncDates> (fun () ->
+              using (File.AppendText $"{root}.dates.txt") (fun sw ->
+                sw.WriteLine (day.ToString ())
+                sw.Flush ()))
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
