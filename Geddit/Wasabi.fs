@@ -12,5 +12,5 @@ let private s3 = new AmazonS3Client (key, secret, config)
 
 let uploadFile (file : string) (bucket : string) (key : string) =
   use u = new TransferUtility (s3)
-  u.Upload (file, bucket, key)
+  u.UploadAsync (file, bucket, key) |> Async.AwaitTask |> Async.RunSynchronously
   u.Dispose ()
