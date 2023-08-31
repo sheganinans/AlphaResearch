@@ -48,20 +48,27 @@ let reqThetaData<'t> (url : string) =
     with _ -> return Disconnected
   }
   
+type SecurityDescrip =
+  | Stock of string * DateTime
+  | Option of {| Root: string; Day: DateTime; Exp: DateTime; Strike: int; Right : string |}
+  
 let inline extract<'a, 'b>
-    (f : string -> DateTime -> string)
+    (f : SecurityDescrip -> string)
     (g : DateTime -> Rsp<'a> -> 'b)
     (h : 'b -> 'b -> unit)
-    (root : string)
-    (day : DateTime) : 'b RspStatus Async =
+    (sec : SecurityDescrip) : 'b RspStatus Async =
   async {
-    match! f root day |> reqThetaData<'a> |> Async.AwaitTask with
+    match! f sec |> reqThetaData<'a> |> Async.AwaitTask with
     | RspStatus.NoData -> return RspStatus.NoData
     | RspStatus.Disconnected -> return RspStatus.Disconnected
     | RspStatus.Err e -> return RspStatus.Err e
     | RspStatus.Ok rsp ->
       let mutable disconn = false
       let mutable retErr = None
+      let day =
+        match sec with
+        | Stock (_,d) -> d
+        | Option d -> d.Day
       let mutable data = g day rsp
       let mutable nextPage = rsp.header.next_page
       while

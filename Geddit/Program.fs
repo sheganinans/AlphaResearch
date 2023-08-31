@@ -54,7 +54,7 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
             Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
             printfn "uploaded nodata file"
             File.Delete noDataFile            
-            } |> Async.Start
+          } |> Async.Start
           File.Delete $"{root}.dates.txt"
           Directory.Delete root
           using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
@@ -94,8 +94,8 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
 
 and getDataMailbox = MailboxProcessor.Start (fun inbox ->
   async {
-    try
-      while true do
+    while true do
+      try
         let! (root : string) = inbox.Receive ()
         Directory.CreateDirectory root |> ignore
         discord.SendNotification $"starting: {root}" |> Async.Start
@@ -130,11 +130,13 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
                 counterMailbox.Post (root, day, NoData)
                 noDataAcc <- day :: noDataAcc)
               | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
-                StockTradeQuotes.saveData root day data
-                counterMailbox.Post (root, day, Data))))
-            
+                try
+                  StockTradeQuotes.saveData root day data
+                  counterMailbox.Post (root, day, Data)
+                with _ -> disconns <- day :: disconns)))
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
-    with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
+          if trySet.Count <> 0 then do! Async.Sleep 10_000
+      with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
   })
   
 and symbolMailbox = MailboxProcessor.Start (fun inbox ->

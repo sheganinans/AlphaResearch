@@ -32,19 +32,4 @@ type Discord () =
         |> Async.Ignore   
     }
 
-
-type private SyncRoot = class end
-
-type Singleton =
-  [<DefaultValue>] static val mutable private instance: Discord
-
-  private new () = { new Singleton }
-
-  static member Instance = 
-    lock typeof<SyncRoot> (fun () ->
-      if box Singleton.instance = null then
-        Singleton.instance <- Discord ()
-        Thread.Sleep 3_000)
-    Singleton.instance    
-
-let discord = Singleton.Instance
+let discord = Discord ()

@@ -62,6 +62,20 @@ let rspToData (date : DateTime) (rsp : Rsp<float [] []>) : Data =
   ret
   
   
+let concat a b =
+  a.TimeOfTrade <- Array.append a.TimeOfTrade b.TimeOfTrade
+  a.Sequence    <- Array.append a.Sequence    b.Sequence
+  a.Size        <- Array.append a.Size        b.Size
+  a.Condition   <- Array.append a.Condition   b.Condition
+  a.Price       <- Array.append a.Price       b.Price
+  a.TimeOfQuote <- Array.append a.TimeOfQuote b.TimeOfQuote
+  a.BidSize     <- Array.append a.BidSize     b.BidSize
+  a.Bid         <- Array.append a.Price       b.Price
+  a.BidExchange <- Array.append a.BidExchange b.BidExchange
+  a.AskSize     <- Array.append a.AskSize     b.AskSize
+  a.Ask         <- Array.append a.Ask         b.Ask
+  a.AskExchange <- Array.append a.AskExchange b.AskExchange
+  
 let saveData (symbol : string) (date : DateTime) (data : Data) =
   let cols : Column [] =
     [|
@@ -110,26 +124,11 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     f.Close ()
   )
   
-let toReq (root : string) (day : DateTime) =
-  let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
-  $"http://127.0.0.1:25510/hist/stock/trade_quote?root={root}&start_date={ds}&end_date={ds}"
+let toReq (sec : SecurityDescrip) =
+  match sec with
+  | Stock (root, day) ->
+    let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
+    $"http://127.0.0.1:25510/hist/stock/trade_quote?root={root}&start_date={ds}&end_date={ds}"
+  | _ -> raise (Exception "StockTradeQuotes.toReq: this should never happen")
 
-let reqAndConcat (root : string) (day : DateTime) =
-  extract
-    toReq
-    rspToData
-    (fun a b ->
-      a.TimeOfTrade <- Array.append a.TimeOfTrade b.TimeOfTrade
-      a.Sequence    <- Array.append a.Sequence    b.Sequence
-      a.Size        <- Array.append a.Size        b.Size
-      a.Condition   <- Array.append a.Condition   b.Condition
-      a.Price       <- Array.append a.Price       b.Price
-      a.TimeOfQuote <- Array.append a.TimeOfQuote b.TimeOfQuote
-      a.BidSize     <- Array.append a.BidSize     b.BidSize
-      a.Bid         <- Array.append a.Price       b.Price
-      a.BidExchange <- Array.append a.BidExchange b.BidExchange
-      a.AskSize     <- Array.append a.AskSize     b.AskSize
-      a.Ask         <- Array.append a.Ask         b.Ask
-      a.AskExchange <- Array.append a.AskExchange b.AskExchange)
-    root
-    day
+let reqAndConcat (root : string) (day : DateTime) = extract toReq rspToData concat (Stock (root, day))
