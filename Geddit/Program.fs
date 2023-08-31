@@ -43,9 +43,9 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
   async {
     while true do
       let! (root : string) = inbox.Receive ()
-      do! Async.Sleep 500
       lock typeof<SyncFinish> (fun () ->
         try
+          nextSymbol ()
           while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
           printfn $"finished: {root}"
           let noDataFile = $"{root}.nodata.txt"
@@ -55,7 +55,6 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
           File.Delete $"{root}.dates.txt"
           Directory.Delete root
           using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
-          nextSymbol ()
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
 
