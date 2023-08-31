@@ -23,7 +23,7 @@ let roots =
   Async.Sleep 7000 |> Async.RunSynchronously
   printfn "get roots"
   match Roots.getStockRoots () with
-  | Error err -> [||]
+  | Error _ -> [||]
   | Result.Ok roots ->
     roots
     |> Array.map (fun root -> root.Replace ('/', '.'))
@@ -31,6 +31,8 @@ let roots =
 
 type private SyncFinish = class end
 type private SyncCount = class end
+type private SyncNoData = class end
+type private SyncDates = class end
 type private SyncGo = class end
 
 let mutable nextSymbol = fun () -> ()
@@ -52,9 +54,7 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
           File.Delete $"{root}.dates.txt"
           while (Directory.GetFiles root).Length <> 0 do Async.Sleep 100 |> Async.RunSynchronously 
           Directory.Delete root
-
-          use sw = File.AppendText "finished.txt"
-          sw.WriteLine root
+          using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
           nextSymbol ()
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
@@ -71,7 +71,7 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         async {
           match data with
           | NoData ->
-            lock typeof<SyncCount> (fun () ->
+            lock typeof<SyncNoData> (fun () ->
               let noDataFile = $"{root}.nodata.txt"
               use sw = File.AppendText noDataFile
               sw.WriteLine (day.ToString ())
@@ -80,9 +80,11 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
           | Data ->
             Wasabi.uploadFile f StockTradeQuotes.BUCKET f
             File.Delete f
-            use sw = File.AppendText $"{root}.dates.txt"
-            sw.WriteLine (day.ToString ())
-            sw.Flush ()
+            lock typeof<SyncDates>
+              (fun () ->
+                using (File.AppendText $"{root}.dates.txt") (fun sw ->
+                  sw.WriteLine (day.ToString ())
+                  sw.Flush ()))
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
