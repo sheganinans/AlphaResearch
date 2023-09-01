@@ -100,8 +100,8 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
         while trySet.Count <> 0 do
           trySet <- 
             trySet
-            |> Seq.chunkBySize 16
-            |> PSeq.withDegreeOfParallelism 4
+            |> Seq.chunkBySize 32
+            |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
             |> PSeq.fold (fun acc chunk ->
                 acc |> Set.union
                   (chunk
