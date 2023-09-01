@@ -23,7 +23,7 @@ let roots =
   Async.Sleep 7000 |> Async.RunSynchronously
   printfn "get roots"
   match Roots.getStockRoots () with
-  | Error err -> [||]
+  | Error _ -> [||]
   | Result.Ok roots ->
     roots
     |> Array.map (fun root -> root.Replace ('/', '.'))
@@ -32,7 +32,6 @@ let roots =
 type private SyncFinish = class end
 type private SyncCount = class end
 type private SyncNoData = class end
-type private SyncDates = class end
 type private SyncGo = class end
 
 let mutable nextSymbol = fun () -> ()
@@ -45,22 +44,23 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
       let! (root : string) = inbox.Receive ()
       lock typeof<SyncFinish> (fun () ->
         try
-          Async.Sleep 500 |> Async.RunSynchronously
-          printfn $"finished: {root}"
-          let noDataFile = $"{root}.nodata.txt"
-          Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
-          printfn "uploaded no data file"
-          File.Delete noDataFile
-          File.Delete $"{root}.dates.txt"
-          using (File.AppendText "finished.txt") (fun sw ->  sw.WriteLine root)
           nextSymbol ()
+          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 50 |> Async.RunSynchronously 
+          printfn $"finished: {root}"
+          async {
+            do! Async.Sleep 3000
+            let noDataFile = $"{root}.nodata.txt"
+            Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+            printfn "uploaded nodata file"
+            File.Delete noDataFile            
+            Directory.Delete root
+            using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
+          } |> Async.Start
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
 
 and counterMailbox = MailboxProcessor.Start (fun inbox ->
   let mutable m = Map.empty
-  let mutable now = DateTime.Now
-  let mutable ms = 0.
   async {
     try
       while true do
@@ -69,39 +69,32 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
         async {
           match data with
           | NoData ->
-            lock typeof<SyncNoData>
-              (fun () -> using (File.AppendText $"{root}.nodata.txt")
-                           (fun sw -> sw.WriteLine (day.ToString ())))
-          | Data -> ()
-          lock typeof<SyncDates>
-            (fun () -> using (File.AppendText $"{root}.dates.txt")
-                         (fun sw -> sw.WriteLine (day.ToString ())))
+            let noDataFile = $"{root}.nodata.txt"
+            lock typeof<SyncNoData> (fun () ->
+              using (File.AppendText noDataFile) (fun sw ->
+                sw.WriteLine (day.ToString ())
+                sw.Flush ()))
+          | Data ->
+            Wasabi.uploadFile f StockTradeQuotes.BUCKET f
+            File.Delete f
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
             m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
-            ms <- float (DateTime.Now - now).Milliseconds
-            now <- DateTime.Now
             m |> Map.find root)
-        printfn $"%02.2f{100. * (float c / float TOTAL_DAYS)}%% {f} %04.2f{ms}ms"
         if TOTAL_DAYS = c then finishedMailbox.Post root
     with err -> discord.SendAlert $"counterMailbox: {err}" |> Async.Start
   })
 
 and getDataMailbox = MailboxProcessor.Start (fun inbox ->
   async {
-    try
-      while true do
+    while true do
+      try
         let! (root : string) = inbox.Receive ()
         discord.SendNotification $"starting: {root}" |> Async.Start
-        let skipDates =
-          try File.ReadLines $"{root}.dates.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
-          with _ -> Set.empty
-        skipDates |> Set.iter (fun d -> counterMailbox.Post (root, d, NoData))
         let mutable trySet =
           seq { 0..(endDay-startDay).Days - 1 }
           |> Seq.map (startDay.AddDays << float)
-          |> Seq.filter (not << skipDates.Contains)
           |> Set.ofSeq
           
         let mutable noDataAcc = []
@@ -117,7 +110,9 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
             |> PSeq.withDegreeOfParallelism 2
             |> PSeq.iter (fun day ->
               match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
-              | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
+              | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
+                discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
+                errors <- day :: errors)
               | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
                 thetaData.Reset ()
                 disconns <- day:: disconns)
@@ -125,11 +120,20 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
                 counterMailbox.Post (root, day, NoData)
                 noDataAcc <- day :: noDataAcc)
               | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
-                StockTradeQuotes.saveData root day data
-                counterMailbox.Post (root, day, Data))))
-            
+                try
+                  StockTradeQuotes.saveData root day data
+                  counterMailbox.Post (root, day, Data)
+                with err ->
+                  discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
+                  disconns <- day :: disconns)))
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
-    with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
+          disconns <- []
+          errors <- []
+          if trySet.Count <> 0
+          then
+            do! Async.Sleep 20_000
+            do! discord.SendAlert $"restarting {root} with {trySet.Count} saved dates"
+      with err -> discord.SendAlert $"getDataMailbox3: {err}" |> Async.Start
   })
   
 and symbolMailbox = MailboxProcessor.Start (fun inbox ->

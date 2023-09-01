@@ -5,6 +5,7 @@ open System.Diagnostics
 open System.Net.Http
 
 open Discord
+open Geddit.Discord
 open SpanJson
 
 type Header () = 
@@ -48,20 +49,27 @@ let reqThetaData<'t> (url : string) =
     with _ -> return Disconnected
   }
   
+type SecurityDescrip =
+  | Stock of string * DateTime
+  | Option of {| Root: string; Day: DateTime; Exp: DateTime; Strike: int; Right : string |}
+  
 let inline extract<'a, 'b>
-    (f : string -> DateTime -> string)
+    (f : SecurityDescrip -> string)
     (g : DateTime -> Rsp<'a> -> 'b)
     (h : 'b -> 'b -> unit)
-    (root : string)
-    (day : DateTime) : 'b RspStatus Async =
+    (sec : SecurityDescrip) : 'b RspStatus Async =
   async {
-    match! f root day |> reqThetaData<'a> |> Async.AwaitTask with
+    match! f sec |> reqThetaData<'a> |> Async.AwaitTask with
     | RspStatus.NoData -> return RspStatus.NoData
     | RspStatus.Disconnected -> return RspStatus.Disconnected
     | RspStatus.Err e -> return RspStatus.Err e
     | RspStatus.Ok rsp ->
       let mutable disconn = false
       let mutable retErr = None
+      let day =
+        match sec with
+        | Stock (_,d) -> d
+        | Option d -> d.Day
       let mutable data = g day rsp
       let mutable nextPage = rsp.header.next_page
       while
@@ -94,10 +102,30 @@ type private ThetaProc () =
     
   member this.Proc = theta
 
+type private SyncRoot = class end
+
+type private Singleton =
+  [<DefaultValue>] static val mutable private instance: Process
+
+  private new () = { new Singleton }
+
+  static member Reset () =
+    lock typeof<SyncRoot> (fun () ->
+      try Singleton.instance.Kill () with _ -> ()
+      Singleton.instance <- (ThetaProc ()).Proc)
+  
+  static member Instance = 
+    lock typeof<SyncRoot> (fun () ->
+      if box Singleton.instance = null
+      then Singleton.instance <- (ThetaProc ()).Proc)
+    Singleton.instance    
+
 type private SyncTheta = class end
 
 type Theta () =
-  let mutable thetaProc = ThetaProc ()
+  do
+    Singleton.Instance |> ignore
+    Async.Sleep 7_000 |> Async.RunSynchronously
 
   let resetTheta = MailboxProcessor.Start (fun inbox ->
     let mutable lastTime = DateTime.Now
@@ -110,14 +138,8 @@ type Theta () =
           then
             printfn "killing thetadata."
             discord.SendAlert "killing thetadata." |> Async.Start
-            let td = thetaProc.Proc
-            td.Kill ()
-            td.Dispose ()
-            thetaProc <- ThetaProc ()
-
+            Singleton.Reset ()
           lastTime <- DateTime.Now)
     })
   
   member this.Reset () = resetTheta.Post ()
-
-  member this.Kill () = thetaProc.Proc.Kill ()

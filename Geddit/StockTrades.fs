@@ -70,10 +70,13 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
   out.Flush ()
   out.Close ()
 
-let toReq (root : string) (day : DateTime) =
-  let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
-  $"http://127.0.0.1:25510/hist/stock/trade?root={root}&start_date={ds}&end_date={ds}"
-
+let toReq (sec : SecurityDescrip) =
+  match sec with
+  | Stock (root, day) ->
+    let ds = $"%04i{day.Year}%02i{day.Month}%02i{day.Day}"
+    $"http://127.0.0.1:25510/hist/stock/trade?root={root}&start_date={ds}&end_date={ds}"
+  | _ -> raise (Exception "StockTrades.toReq: this should never happen")
+  
 let reqAndSave (root : string) (day : DateTime) =
   extract
     toReq
@@ -84,5 +87,4 @@ let reqAndSave (root : string) (day : DateTime) =
       a.size      <- Array.append a.size      b.size
       a.condition <- Array.append a.condition b.condition
       a.price     <- Array.append a.price     b.price)
-    root
-    day
+    (Stock (root, day))

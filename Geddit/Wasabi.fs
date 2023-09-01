@@ -17,4 +17,5 @@ let uploadStream (file : Stream) (bucket : string) (key : string) =
 
 let uploadPath (file : string) (bucket : string) (key : string) =
   use u = new TransferUtility (s3)
-  u.Upload (file, bucket, key)
+  u.UploadAsync (file, bucket, key) |> Async.AwaitTask |> Async.RunSynchronously
+  u.Dispose ()

@@ -33,7 +33,6 @@ type Discord () =
         |> Async.Ignore   
     }
 
-
 type private SyncRoot = class end
 
 type Singleton =
