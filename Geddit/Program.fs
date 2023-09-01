@@ -135,6 +135,8 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
                   counterMailbox.Post (root, day, Data)
                 with _ -> disconns <- day :: disconns)))
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
+          disconns <- []
+          errors <- []
           if trySet.Count <> 0
           then
             do! Async.Sleep 20_000
