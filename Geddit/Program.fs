@@ -32,7 +32,6 @@ let roots =
 type private SyncFinish = class end
 type private SyncCount = class end
 type private SyncNoData = class end
-type private SyncDates = class end
 type private SyncGo = class end
 
 let mutable nextSymbol = fun () -> ()
@@ -54,10 +53,9 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
             Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
             printfn "uploaded nodata file"
             File.Delete noDataFile            
+            Directory.Delete root
+            using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
           } |> Async.Start
-          File.Delete $"{root}.dates.txt"
-          Directory.Delete root
-          using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
         with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
   })
 
@@ -79,10 +77,6 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
           | Data ->
             Wasabi.uploadFile f StockTradeQuotes.BUCKET f
             File.Delete f
-            lock typeof<SyncDates> (fun () ->
-              using (File.AppendText $"{root}.dates.txt") (fun sw ->
-                sw.WriteLine (day.ToString ())
-                sw.Flush ()))
         } |> Async.Start
         let c =
           lock typeof<SyncCount> (fun () ->
@@ -99,14 +93,9 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
         let! (root : string) = inbox.Receive ()
         Directory.CreateDirectory root |> ignore
         discord.SendNotification $"starting: {root}" |> Async.Start
-        let skipDates =
-          try File.ReadLines $"{root}.dates.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
-          with _ -> Set.empty
-        skipDates |> Set.iter (fun d -> counterMailbox.Post (root, d, NoData))
         let mutable trySet =
           seq { 0..(endDay-startDay).Days - 1 }
           |> Seq.map (startDay.AddDays << float)
-          |> Seq.filter (not << skipDates.Contains)
           |> Set.ofSeq
           
         let mutable noDataAcc = []
