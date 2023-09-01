@@ -50,7 +50,7 @@ let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
           async {
             do! Async.Sleep 3000
             let noDataFile = $"{root}.nodata.txt"
-            Wasabi.uploadFile noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+            Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
             printfn "uploaded nodata file"
             File.Delete noDataFile            
             Directory.Delete root
@@ -75,7 +75,7 @@ and counterMailbox = MailboxProcessor.Start (fun inbox ->
                 sw.WriteLine (day.ToString ())
                 sw.Flush ()))
           | Data ->
-            Wasabi.uploadFile f StockTradeQuotes.BUCKET f
+            Wasabi.uploadPath f StockTradeQuotes.BUCKET f
             File.Delete f
         } |> Async.Start
         let c =
@@ -97,38 +97,36 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           |> Seq.map (startDay.AddDays << float)
           |> Set.ofSeq
           
-        let mutable noDataAcc = []
-        let mutable disconns = []
-        let mutable errors = []
-          
         while trySet.Count <> 0 do
-          trySet
-          |> Seq.chunkBySize 16
-          |> PSeq.withDegreeOfParallelism 4
-          |> PSeq.iter (fun chunk ->
-            chunk
-            |> PSeq.withDegreeOfParallelism 2
-            |> PSeq.iter (fun day ->
-              match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
-              | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
-                discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
-                errors <- day :: errors)
-              | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
-                thetaData.Reset ()
-                disconns <- day:: disconns)
-              | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
-                counterMailbox.Post (root, day, NoData)
-                noDataAcc <- day :: noDataAcc)
-              | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
-                try
-                  StockTradeQuotes.saveData root day data
-                  counterMailbox.Post (root, day, Data)
-                with err ->
-                  discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
-                  disconns <- day :: disconns)))
-          trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
-          disconns <- []
-          errors <- []
+          trySet <- 
+            trySet
+            |> Seq.chunkBySize 16
+            |> PSeq.withDegreeOfParallelism 4
+            |> PSeq.fold (fun acc chunk ->
+                acc |> Set.union
+                  (chunk
+                  |> PSeq.withDegreeOfParallelism 2
+                  |> PSeq.fold (fun acc day ->
+                      match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
+                      | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
+                        discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
+                        acc.Add day)
+                      | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
+                        thetaData.Reset ()
+                        acc.Add day)
+                      | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
+                        counterMailbox.Post (root, day, NoData)
+                        acc)
+                      | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
+                        try
+                          StockTradeQuotes.saveData root day data
+                          counterMailbox.Post (root, day, Data)
+                          acc
+                        with err ->
+                          discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
+                          acc.Add day))
+                      Set.empty))
+                Set.empty
           if trySet.Count <> 0
           then
             do! Async.Sleep 20_000
