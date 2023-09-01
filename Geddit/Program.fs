@@ -91,7 +91,6 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
     while true do
       try
         let! (root : string) = inbox.Receive ()
-        Directory.CreateDirectory root |> ignore
         discord.SendNotification $"starting: {root}" |> Async.Start
         let mutable trySet =
           seq { 0..(endDay-startDay).Days - 1 }
