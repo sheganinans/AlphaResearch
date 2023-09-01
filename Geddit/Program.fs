@@ -135,7 +135,9 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
                 try
                   StockTradeQuotes.saveData root day data
                   counterMailbox.Post (root, day, Data)
-                with _ -> disconns <- day :: disconns)))
+                with err ->
+                  discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
+                  disconns <- day :: disconns)))
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
           disconns <- []
           errors <- []
@@ -143,7 +145,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           then
             do! Async.Sleep 20_000
             do! discord.SendAlert $"restarting {root} with {trySet.Count} saved dates"
-      with err -> discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start
+      with err -> discord.SendAlert $"getDataMailbox3: {err}" |> Async.Start
   })
   
 and symbolMailbox = MailboxProcessor.Start (fun inbox ->
