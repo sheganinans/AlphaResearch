@@ -5,6 +5,7 @@ open System.Diagnostics
 open System.Net.Http
 
 open Discord
+open Geddit.Discord
 open SpanJson
 
 type Header () = 
@@ -101,10 +102,30 @@ type private ThetaProc () =
     
   member this.Proc = theta
 
+type private SyncRoot = class end
+
+type private Singleton =
+  [<DefaultValue>] static val mutable private instance: Process
+
+  private new () = { new Singleton }
+
+  static member Reset () =
+    lock typeof<SyncRoot> (fun () ->
+      try Singleton.instance.Kill () with _ -> ()
+      Singleton.instance <- (ThetaProc ()).Proc)
+  
+  static member Instance = 
+    lock typeof<SyncRoot> (fun () ->
+      if box Singleton.instance = null
+      then Singleton.instance <- (ThetaProc ()).Proc)
+    Singleton.instance    
+
 type private SyncTheta = class end
 
 type Theta () =
-  let mutable thetaProc = ThetaProc ()
+  do
+    Singleton.Instance |> ignore
+    Async.Sleep 7_000 |> Async.RunSynchronously
 
   let resetTheta = MailboxProcessor.Start (fun inbox ->
     let mutable lastTime = DateTime.Now
@@ -117,14 +138,8 @@ type Theta () =
           then
             printfn "killing thetadata."
             discord.SendAlert "killing thetadata." |> Async.Start
-            let td = thetaProc.Proc
-            td.Kill ()
-            td.Dispose ()
-            thetaProc <- ThetaProc ()
-
+            Singleton.Reset ()
           lastTime <- DateTime.Now)
     })
   
   member this.Reset () = resetTheta.Post ()
-
-  member this.Kill () = thetaProc.Proc.Kill ()
