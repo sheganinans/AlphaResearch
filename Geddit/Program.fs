@@ -122,7 +122,9 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
             |> PSeq.withDegreeOfParallelism 2
             |> PSeq.iter (fun day ->
               match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
-              | RspStatus.Err err -> lock typeof<SyncGo> (fun () -> printfn $"{err}"; errors <- day :: errors)
+              | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
+                discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
+                errors <- day :: errors)
               | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
                 thetaData.Reset ()
                 disconns <- day:: disconns)
@@ -141,7 +143,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
           then
             do! Async.Sleep 20_000
             do! discord.SendAlert $"restarting {root} with {trySet.Count} saved dates"
-      with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
+      with err -> discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start
   })
   
 and symbolMailbox = MailboxProcessor.Start (fun inbox ->
