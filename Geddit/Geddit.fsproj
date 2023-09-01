@@ -7,6 +7,7 @@
 
     <ItemGroup>
         <Compile Include="TradeCondition.fs" />
+        <Compile Include="Exchange.fs" />
         <Compile Include="Wasabi.fs" />
         <Compile Include="Discord.fs" />
         <Compile Include="ThetaData.fs" />
