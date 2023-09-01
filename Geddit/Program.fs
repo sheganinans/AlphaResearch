@@ -135,7 +135,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
                   counterMailbox.Post (root, day, Data)
                 with _ -> disconns <- day :: disconns)))
           trySet <- disconns |> Set.ofList |> Set.union (errors |> Set.ofList)
-          if trySet.Count <> 0 then do! Async.Sleep 10_000
+          if trySet.Count <> 0 then do! Async.Sleep 20_000
       with err -> discord.SendAlert $"getDataMailbox: {err}" |> Async.Start
   })
   
