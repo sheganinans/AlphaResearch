@@ -100,7 +100,7 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
         while trySet.Count <> 0 do
           trySet <- 
             trySet
-            |> Seq.chunkBySize 32
+            |> Seq.chunkBySize (match (trySet.Count / Environment.ProcessorCount) / 8 with 0 -> 1 | c -> c)
             |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
             |> PSeq.fold (fun retries chunk ->
                 retries |> Set.union
