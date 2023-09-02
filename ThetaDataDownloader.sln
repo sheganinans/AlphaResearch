@@ -4,6 +4,10 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DataRepair", "DataRepair\Da
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Geddit", "Geddit\Geddit.fsproj", "{3D6D08B7-339D-4544-B2A7-DD35161D4FE0}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Viz", "Viz\Viz.fsproj", "{DFDB8C74-F392-4AD9-B37B-76E504E44203}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Shared", "Shared\Shared.fsproj", "{A4C7B8E3-7E4F-4E8E-8241-EC9AED381520}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{3D6D08B7-339D-4544-B2A7-DD35161D4FE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D6D08B7-339D-4544-B2A7-DD35161D4FE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D6D08B7-339D-4544-B2A7-DD35161D4FE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFDB8C74-F392-4AD9-B37B-76E504E44203}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFDB8C74-F392-4AD9-B37B-76E504E44203}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFDB8C74-F392-4AD9-B37B-76E504E44203}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFDB8C74-F392-4AD9-B37B-76E504E44203}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4C7B8E3-7E4F-4E8E-8241-EC9AED381520}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4C7B8E3-7E4F-4E8E-8241-EC9AED381520}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4C7B8E3-7E4F-4E8E-8241-EC9AED381520}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4C7B8E3-7E4F-4E8E-8241-EC9AED381520}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
