@@ -15,7 +15,7 @@ let endDay = DateTime (2023, 08, 01)
 let TOTAL_DAYS = (endDay-startDay).Days
 
 
-let finished =
+let finishedSet =
   try File.ReadLines "finished.txt" |> Set.ofSeq
   with _ -> Set.empty
 
@@ -27,128 +27,113 @@ let roots =
   | Result.Ok roots ->
     roots
     |> Array.map (fun root -> root.Replace ('/', '.'))
-    |> Array.filter (not << finished.Contains)
+    |> Array.filter (not << finishedSet.Contains)
 
-type private SyncFinish = class end
 type private SyncCount = class end
 type private SyncNoData = class end
-type private SyncGo = class end
-
-let mutable nextSymbol = fun () -> ()
 
 type DataType = NoData | Data
 
-let rec finishedMailbox = MailboxProcessor.Start (fun inbox ->
+let rec finished (root : string) = 
   async {
-    while true do
-      let! (root : string) = inbox.Receive ()
-      lock typeof<SyncFinish> (fun () ->
-        try
-          nextSymbol ()
-          while (Directory.GetFiles root).Length <> 0 do Async.Sleep 50 |> Async.RunSynchronously 
-          printfn $"finished: {root}"
-          async {
-            do! Async.Sleep 3000
-            let noDataFile = $"{root}.nodata.txt"
-            Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
-            printfn "uploaded nodata file"
-            File.Delete noDataFile            
-            Directory.Delete root
-            using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
-          } |> Async.Start
-        with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start)
-  })
+    try
+      nextSymbol () |> Async.Start
+      while (Directory.GetFiles root).Length <> 0 do Async.Sleep 50 |> Async.RunSynchronously 
+      printfn $"finished: {root}"
+      async {
+        do! Async.Sleep 3000
+        let noDataFile = $"{root}.nodata.txt"
+        Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET $"{root}/nodata.txt"
+        printfn "uploaded nodata file"
+        File.Delete noDataFile            
+        Directory.Delete root
+        using (File.AppendText "finished.txt") (fun sw -> sw.WriteLine root)
+      } |> Async.Start
+    with err -> discord.SendAlert $"finishedMailbox: {err}" |> Async.Start
+  }
 
-and counterMailbox = MailboxProcessor.Start (fun inbox ->
+and counter ((root, day, data) : string * DateTime * DataType) =
   let mutable m = Map.empty
   async {
     try
-      while true do
-        let! ((root, day, data) : string * DateTime * DataType) = inbox.Receive ()
-        let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
-        async {
-          match data with
-          | NoData ->
-            let noDataFile = $"{root}.nodata.txt"
-            lock typeof<SyncNoData> (fun () ->
-              using (File.AppendText noDataFile) (fun sw ->
-                sw.WriteLine (day.ToString ())
-                sw.Flush ()))
-          | Data ->
-            Wasabi.uploadPath f StockTradeQuotes.BUCKET f
-            File.Delete f
-        } |> Async.Start
-        let c =
-          lock typeof<SyncCount> (fun () ->
-            m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
-            m |> Map.find root)
-        if TOTAL_DAYS = c then finishedMailbox.Post root
+      let f = $"{root}/%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.parquet.lz4"
+      async {
+        match data with
+        | NoData ->
+          let noDataFile = $"{root}.nodata.txt"
+          lock typeof<SyncNoData> (fun () ->
+            using (File.AppendText noDataFile) (fun sw ->
+              sw.WriteLine (day.ToString ())
+              sw.Flush ()))
+        | Data ->
+          Wasabi.uploadPath f StockTradeQuotes.BUCKET f
+          File.Delete f
+      } |> Async.Start
+      let c =
+        lock typeof<SyncCount> (fun () ->
+          m <- m |> Map.change root (function | None -> Some 1 | Some n -> Some (n + 1))
+          m |> Map.find root)
+      if TOTAL_DAYS = c then finished root |> Async.Start
     with err -> discord.SendAlert $"counterMailbox: {err}" |> Async.Start
-  })
+  }
 
-and getDataMailbox = MailboxProcessor.Start (fun inbox ->
+and getData (root : string) =
   async {
-    while true do
-      try
-        let! (root : string) = inbox.Receive ()
-        discord.SendNotification $"starting: {root}" |> Async.Start
-        let mutable trySet =
-          seq { 0..(endDay-startDay).Days - 1 }
-          |> Seq.map (startDay.AddDays << float)
-          |> Set.ofSeq
-          
-        while trySet.Count <> 0 do
-          trySet <- 
-            trySet
-            |> Seq.chunkBySize (match (trySet.Count / Environment.ProcessorCount) / 8 with 0 -> 1 | c -> c)
-            |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
-            |> PSeq.fold (fun retries chunk ->
-                retries |> Set.union
-                  (chunk
-                  |> PSeq.withDegreeOfParallelism 2
-                  |> PSeq.fold (fun retries day ->
-                      match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
-                      | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
-                        discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
+    try
+      discord.SendNotification $"starting: {root}" |> Async.Start
+      let mutable trySet =
+        seq { 0..(endDay-startDay).Days - 1 }
+        |> Seq.map (startDay.AddDays << float)
+        |> Set.ofSeq
+        
+      while trySet.Count <> 0 do
+        trySet <- 
+          trySet
+          |> Seq.chunkBySize (match (trySet.Count / Environment.ProcessorCount) / 16 with 0 -> 1 | c -> c)
+          |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
+          |> PSeq.fold (fun retries chunk ->
+              retries |> Set.union
+                (chunk
+                |> PSeq.withDegreeOfParallelism 2
+                |> PSeq.fold (fun retries day ->
+                    match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
+                    | RspStatus.Err err ->
+                      discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
+                      retries.Add day
+                    | RspStatus.Disconnected ->
+                      thetaData.Reset ()
+                      retries.Add day
+                    | RspStatus.NoData ->
+                      counter (root, day, NoData) |> Async.Start
+                      retries
+                    | RspStatus.Ok data ->
+                      try
+                        StockTradeQuotes.saveData root day data
+                        counter (root, day, Data) |> Async.Start
+                        retries
+                      with err ->
+                        discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
                         retries.Add day)
-                      | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
-                        thetaData.Reset ()
-                        retries.Add day)
-                      | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
-                        counterMailbox.Post (root, day, NoData)
-                        retries)
-                      | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
-                        try
-                          StockTradeQuotes.saveData root day data
-                          counterMailbox.Post (root, day, Data)
-                          retries
-                        with err ->
-                          discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
-                          retries.Add day))
-                      Set.empty))
-                Set.empty
-          if trySet.Count <> 0
-          then
-            do! Async.Sleep 20_000
-            do! discord.SendAlert $"restarting {root} with {trySet.Count} saved dates"
-      with err -> discord.SendAlert $"getDataMailbox3: {err}" |> Async.Start
-  })
+                    Set.empty))
+              Set.empty
+        if trySet.Count <> 0
+        then
+          do! Async.Sleep 20_000
+          do! discord.SendAlert $"restarting {root} with {trySet.Count} saved dates"
+    with err -> discord.SendAlert $"getDataMailbox3: {err}" |> Async.Start
+  }
   
-and symbolMailbox = MailboxProcessor.Start (fun inbox ->
+and nextSymbol () =
   let mutable i = 0
   async {
     try
-      while true do
-        let! () = inbox.Receive ()
-        let r = roots[i]
-        printfn $"symbol: {r}"
-        getDataMailbox.Post r
-        i <- i + 1
+      let r = roots[i]
+      printfn $"symbol: {r}"
+      getData r |> Async.Start
+      i <- i + 1
     with err -> discord.SendAlert $"symbolMailbox: {err}" |> Async.Start
-  })
-
-nextSymbol <- symbolMailbox.Post
+  }
 
 Thread.Sleep 1000
-symbolMailbox.Post ()
+nextSymbol () |> Async.Start
 Thread.Sleep -1
