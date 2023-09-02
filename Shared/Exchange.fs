@@ -1,4 +1,4 @@
-module Geddit.Exchange
+module Shared.Exchange
 
 type Exchange =
   | AMEX = 4 

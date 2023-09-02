@@ -1,4 +1,4 @@
-module Geddit.StockTrades
+module Shared.StockTrades
 
 open System
 open System.IO
@@ -7,9 +7,7 @@ open K4os.Compression.LZ4
 open K4os.Compression.LZ4.Streams
 open ParquetSharp
 
-open Geddit.ThetaData
-open Geddit.Wasabi
-open Discord
+open Shared.ThetaData
 
 let BUCKET = "theta-data-stock-trades"
 

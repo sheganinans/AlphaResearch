@@ -1,12 +1,12 @@
-module Geddit.ThetaData
+module Shared.ThetaData
 
 open System
 open System.Diagnostics
 open System.Net.Http
 
-open Discord
-open Geddit.Discord
 open SpanJson
+
+open Discord
 
 type Header () = 
     member val id : int = 0 with get,set

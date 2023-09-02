@@ -3,9 +3,9 @@ open System.IO
 
 open System.Threading
 open FSharp.Collections.ParallelSeq
-open Geddit
-open Geddit.ThetaData
-open Geddit.Discord
+open Shared
+open Shared.ThetaData
+open Shared.Discord
 
 let thetaData = Theta ()
 

@@ -1,11 +1,11 @@
-module Geddit.Roots
+module Shared.Roots
 
 open System
 open System.Net.Http
 
 open SpanJson
 
-open Geddit.ThetaData
+open Shared.ThetaData
 
 let getStockRoots () =
   task {

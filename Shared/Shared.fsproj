@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="TradeCondition.fs" />
+        <Compile Include="Exchange.fs" />
+        <Compile Include="Wasabi.fs" />
+        <Compile Include="Discord.fs" />
+        <Compile Include="ThetaData.fs" />
+        <Compile Include="Roots.fs" />
+        <Compile Include="StockTrades.fs" />
+        <Compile Include="StockTradeQuotes.fs" />
+        <Compile Include="OptionTradeQuotes.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AWSSDK.S3" Version="3.7.203.7" />
+      <PackageReference Include="Discord.Net" Version="3.12.0" />
+      <PackageReference Include="K4os.Compression.LZ4.Streams" Version="1.3.6" />
+      <PackageReference Include="ParquetSharp" Version="12.0.1" />
+      <PackageReference Include="SpanJson" Version="4.0.1" />
+    </ItemGroup>
+
+</Project>

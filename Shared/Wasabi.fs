@@ -1,4 +1,4 @@
-module Geddit.Wasabi
+module Shared.Wasabi
 
 open System
 open System.IO

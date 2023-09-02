@@ -1,7 +1,7 @@
-module Geddit.OptionTradeQuotes
+module Shared.OptionTradeQuotes
 
 open System
-open Geddit.ThetaData
+open Shared.ThetaData
 
 type Data = StockTradeQuotes.Data
 

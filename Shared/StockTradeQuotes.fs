@@ -1,4 +1,4 @@
-module Geddit.StockTradeQuotes
+module Shared.StockTradeQuotes
 
 open System
 open System.IO
@@ -8,7 +8,7 @@ open K4os.Compression.LZ4.Streams
 open Microsoft.FSharp.Collections
 open ParquetSharp
 
-open Geddit.ThetaData
+open Shared.ThetaData
 
 let BUCKET = "theta-data-trade-quotes"
 

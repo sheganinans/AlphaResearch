@@ -1,4 +1,4 @@
-module Geddit.Discord
+module Shared.Discord
 
 open System
 open System.Threading

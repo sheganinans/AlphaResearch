@@ -1,4 +1,4 @@
-module ThetaDataDownloader.TradeCondition
+module Shared.TradeCondition
 
 type TradeCondition =
   | ACQUISITION = 22
