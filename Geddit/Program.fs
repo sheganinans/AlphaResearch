@@ -3,6 +3,7 @@ open System.IO
 
 open System.Threading
 open FSharp.Collections.ParallelSeq
+
 open Shared
 open Shared.ThetaData
 open Shared.Discord
@@ -91,11 +92,11 @@ and getData (root : string) =
           trySet
           |> Seq.chunkBySize (match (trySet.Count / Environment.ProcessorCount) / 16 with 0 -> 1 | c -> c)
           |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
-          |> PSeq.fold (fun retries chunk ->
+          |> (Set.empty |> PSeq.fold (fun retries chunk ->
               retries |> Set.union
                 (chunk
                 |> PSeq.withDegreeOfParallelism 2
-                |> PSeq.fold (fun retries day ->
+                |> (Set.empty |> PSeq.fold (fun retries day ->
                     match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
                     | RspStatus.Err err ->
                       discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
@@ -113,9 +114,7 @@ and getData (root : string) =
                         retries
                       with err ->
                         discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
-                        retries.Add day)
-                    Set.empty))
-              Set.empty
+                        retries.Add day)))))
         if trySet.Count <> 0
         then
           do! Async.Sleep 20_000
