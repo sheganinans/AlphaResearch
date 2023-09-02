@@ -102,29 +102,29 @@ and getDataMailbox = MailboxProcessor.Start (fun inbox ->
             trySet
             |> Seq.chunkBySize 32
             |> PSeq.withDegreeOfParallelism Environment.ProcessorCount
-            |> PSeq.fold (fun acc chunk ->
-                acc |> Set.union
+            |> PSeq.fold (fun retries chunk ->
+                retries |> Set.union
                   (chunk
                   |> PSeq.withDegreeOfParallelism 2
-                  |> PSeq.fold (fun acc day ->
+                  |> PSeq.fold (fun retries day ->
                       match StockTradeQuotes.reqAndConcat root day |> Async.RunSynchronously with
                       | RspStatus.Err err -> lock typeof<SyncGo> (fun () ->
                         discord.SendAlert $"getDataMailbox1: {err}" |> Async.Start
-                        acc.Add day)
+                        retries.Add day)
                       | RspStatus.Disconnected -> lock typeof<SyncGo> (fun () ->
                         thetaData.Reset ()
-                        acc.Add day)
+                        retries.Add day)
                       | RspStatus.NoData -> lock typeof<SyncGo> (fun () ->
                         counterMailbox.Post (root, day, NoData)
-                        acc)
+                        retries)
                       | RspStatus.Ok data -> lock typeof<SyncGo> (fun () ->
                         try
                           StockTradeQuotes.saveData root day data
                           counterMailbox.Post (root, day, Data)
-                          acc
+                          retries
                         with err ->
                           discord.SendAlert $"getDataMailbox2: {err}" |> Async.Start                
-                          acc.Add day))
+                          retries.Add day))
                       Set.empty))
                 Set.empty
           if trySet.Count <> 0
