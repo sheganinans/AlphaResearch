@@ -54,23 +54,29 @@ seq { 0..(endDay-startDay).Days - 1 }
           s.TryAdd (c, ()) |> ignore
           while s.Count >= HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
           async {
-            match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
-            | RspStatus.Err err ->
-              discord.SendAlert $"getContract1: {err}" |> Async.Start
-            | RspStatus.Disconnected ->
-              thetaData.Reset ()
-            | RspStatus.NoData -> ()
-            | RspStatus.Ok data ->
-                try
-                  FileOps.saveData (SecurityDescrip.Option c) data
-                  s.TryRemove c |> ignore
-                with err -> discord.SendAlert $"getContract2: {err}" |> Async.Start
+            let mutable retry = true
+            while retry do
+              match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
+              | RspStatus.Err err ->
+                discord.SendAlert $"getContract1: {err}" |> Async.Start
+              | RspStatus.Disconnected ->
+                thetaData.Reset ()
+                Async.Sleep 1000 |> Async.RunSynchronously
+              | RspStatus.NoData -> retry <- false
+              | RspStatus.Ok data ->
+                  try
+                    FileOps.saveData (SecurityDescrip.Option c) data
+                    s.TryRemove c |> ignore
+                    retry <- false
+                  with err ->
+                    discord.SendAlert $"getContract2: {err}" |> Async.Start
+                    Async.Sleep 1000 |> Async.RunSynchronously
             lock typeof<SyncCount> (fun () -> n <- n + 1)
           } |> Async.Start
         while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
           printfn $"sleep: {n} {chunk.Length} %0.2f{100. * (float n / float chunk.Length)}%%"
-          Async.Sleep 10 |> Async.RunSynchronously)
-      discord.SendNotification $"{r.Day}: %0.5f{100. * (float i * (float CHUNK_COUNT / float cs.Length))}%%." |> Async.Start)
+          Async.Sleep 10 |> Async.RunSynchronously
+        discord.SendNotification $"{r.Day}: %0.2f{100. * (float i * (float CHUNK_COUNT / float cs.Length))}%%." |> Async.Start))
 
 discord.SendAlert "done!" |> Async.RunSynchronously
 
