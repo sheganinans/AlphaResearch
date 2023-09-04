@@ -15,6 +15,7 @@
         <Compile Include="StockTrades.fs" />
         <Compile Include="StockTradeQuotes.fs" />
         <Compile Include="OptionTradeQuotes.fs" />
+        <Compile Include="FileOps.fs" />
     </ItemGroup>
 
     <ItemGroup>

@@ -101,7 +101,7 @@ let reqUrl (url : string) =
       | "NO_DATA" -> return NoData
       | _ -> return Err { ErrType = err.error_type; ErrDescrip = err.error_msg }
   }
- 
+
 let reqStockHist (root : string) (date : DateTime) : Async<ReqRes> =
   task {
     let ds = $"%04i{date.Year}%02i{date.Month}%02i{date.Day}"
@@ -109,7 +109,7 @@ let reqStockHist (root : string) (date : DateTime) : Async<ReqRes> =
     return! reqUrl $"http://127.0.0.1:25510/hist/stock/trade?root={root}&start_date={ds}&end_date={ds}"
   }
   |> Async.AwaitTask
-      
+
 type Data =
   {
     mutable time      : DateTime []
@@ -176,7 +176,6 @@ let mutable bad = 0
 chunked ()
 |> Seq.iter (fun job ->
   let root = job[0].Split('/')[0]
-  let lockObj = Object ()
   let mutable noData = 
     match job |> List.tryFind (fun s -> s.Contains "nodata.txt") with
     | None -> Set.empty
@@ -207,41 +206,5 @@ chunked ()
     |> Seq.map (startDay.AddDays << float)
     |> Seq.filter (fun day -> (not <| noData.Contains day) && (not <| job.Contains day))
     |> Seq.iter (fun day ->
-      ()
-      //printfn $"{root}: {day}"
-      // try
-      //   let rsp = reqStockHist root day |> Async.RunSynchronously
-      //   match rsp with
-      //   | Err err -> discord.SendAlert $"ERR1:\n{err}" |> Async.Start
-      //   | NoData -> lock lockObj (fun () -> noData <- noData.Add day)
-      //   | Ok rsp ->
-      //     let mutable data = rspToData day rsp
-      //     let mutable nextPage = rsp.header.next_page
-      //     while not <| isNull nextPage && nextPage <> "null" do
-      //       printfn $"{nextPage}"
-      //       let rsp = reqUrl nextPage |> Async.AwaitTask |> Async.RunSynchronously
-      //       match rsp with
-      //       | Err err ->
-      //         discord.SendAlert $"ERR2:\m{err}" |> Async.Start
-      //         let fileName = $"%04i{day.Year}-%02i{day.Month}-%02i{day.Day}.err"
-      //         File.AppendAllText (fileName, Json.serialize err)
-      //         uploadFile fileName $"{root}/{fileName}"
-      //         File.Delete fileName
-      //       | NoData -> nextPage <- null
-      //       | Ok rsp ->
-      //         nextPage <- rsp.header.next_page
-      //         let addtlData = rspToData day rsp
-      //         printfn $"{data.time[0]}"
-      //         data.time      <- Array.append data.time      addtlData.time
-      //         data.sequence  <- Array.append data.sequence  addtlData.sequence
-      //         data.size      <- Array.append data.size      addtlData.size
-      //         data.condition <- Array.append data.condition addtlData.condition
-      //         data.price     <- Array.append data.price     addtlData.price
-      //         printfn $"{data.time |> Array.last}"
-      //       saveData root day data
-      //   with
-      //     | :? TaskCanceledException -> () //killerMailbox.Post ()
-      //     | err -> ()) //discord.SendAlert $"ERR3: {err}" |> Async.Start)
-      //
-    )
+      ())
   printfn $"perc good: {100. * (float good / float (good + bad))}")

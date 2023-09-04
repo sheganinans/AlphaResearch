@@ -9,16 +9,16 @@ open SpanJson
 open Discord
 
 type Header () = 
-    member val id : int = 0 with get,set
-    member val latency_ms : int = 0 with get, set
-    member val error_type : string = null with get, set
-    member val error_msg  : string = null with get, set
-    member val next_page  : string = null with get, set
-    member val format     : string [] = [||] with get, set
+  member val id : int = 0 with get,set
+  member val latency_ms : int = 0 with get, set
+  member val error_type : string = null with get, set
+  member val error_msg  : string = null with get, set
+  member val next_page  : string = null with get, set
+  member val format     : string [] = [||] with get, set
 
 type Rsp<'t> () =
-    member val header   : Header = Header () with get, set
-    member val response : 't = Unchecked.defaultof<'t> with get, set
+  member val header   : Header = Header () with get, set
+  member val response : 't = Unchecked.defaultof<'t> with get, set
 
 type ErrDescip =
   {
@@ -48,11 +48,11 @@ let reqThetaData<'t> (url : string) =
         | _ -> return Err { ErrType = err.error_type; ErrDescrip = err.error_msg }
     with _ -> return Disconnected
   }
-  
+
 type SecurityDescrip =
   | Stock of string * DateTime
-  | Option of {| Root: string; Day: DateTime; Exp: DateTime; Strike: int; Right : string |}
-  
+  | Option of {| Root: string; Day: DateTime; Exp: int; Strike: int; Right : string |}
+
 let inline extract<'a, 'b>
     (f : SecurityDescrip -> string)
     (g : DateTime -> Rsp<'a> -> 'b)
@@ -99,7 +99,7 @@ type private ThetaProc () =
     theta.StartInfo.FileName <- "java"
     theta.StartInfo.Arguments <- "-Xmx4096m -jar ThetaTerminal.jar creds=creds"
     theta.Start () |> ignore
-    
+
   member this.Proc = theta
 
 type private SyncRoot = class end
@@ -113,12 +113,12 @@ type private Singleton =
     lock typeof<SyncRoot> (fun () ->
       try Singleton.instance.Kill () with _ -> ()
       Singleton.instance <- (ThetaProc ()).Proc)
-  
+
   static member Instance = 
     lock typeof<SyncRoot> (fun () ->
       if box Singleton.instance = null
       then Singleton.instance <- (ThetaProc ()).Proc)
-    Singleton.instance    
+    Singleton.instance
 
 type private SyncTheta = class end
 

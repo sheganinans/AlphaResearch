@@ -37,7 +37,10 @@ let getContracts (d : DateTime) =
       client.DefaultRequestHeaders.Add ("Accept", "application/json")
       let! response = client.GetAsync $"http://127.0.0.1:25510/list/contracts/option/trade?start_date=%04i{d.Year}%02i{d.Month}%02i{d.Day}"
       let! c = response.Content.ReadAsStringAsync ()
-      return Result.Ok (JsonSerializer.Generic.Utf16.Deserialize<Rsp<(string * int * int * string) []>> c).response
-    with _ -> return Error "failed to get contracts"
+      return
+        Result.Ok
+          ((JsonSerializer.Generic.Utf16.Deserialize<Rsp<(string * int * int * string) []>> c).response
+           |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |}))
+    with err -> return Error $"{err}"
   } |> Async.AwaitTask |> Async.RunSynchronously
-  
+
