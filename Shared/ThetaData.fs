@@ -46,7 +46,9 @@ let reqThetaData<'t> (url : string) =
         | "NO_DATA" -> return NoData
         | "DISCONNECTED" -> return Disconnected
         | _ -> return Err { ErrType = err.error_type; ErrDescrip = err.error_msg }
-    with _ -> return Disconnected
+    with err ->
+      discord.SendAlert $"{err}" |> Async.Start
+      return Disconnected
   }
 
 type OptionDescrip =
