@@ -48,14 +48,14 @@
         let mutable trySet = cs |> Set.ofSeq
         while trySet.Count <> 0 do
           trySet <-
-            withChunking trySet cs 500 (fun chunk ->
+            withChunking trySet cs (int <| float cs.Length * 0.005) (fun chunk ->
               let mutable n = 0
               let r = 
                 let s = ConcurrentDictionary<OptionDescrip, unit> ()
                 let retries = ConcurrentDictionary<OptionDescrip, unit> ()
                 for c in chunk do
                   s.TryAdd (c, ()) |> ignore
-                  while s.Count > 25 do Async.Sleep 10 |> Async.RunSynchronously
+                  while s.Count > 32 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
                     match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
                     | RspStatus.Err err ->
