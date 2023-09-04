@@ -64,14 +64,7 @@ seq { 0..(endDay-startDay).Days - 1 }
                         retries
                       | RspStatus.Ok data ->
                         async {
-                          try
-                            if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
-                            if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
-                            then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
-                            FileOps.saveData (SecurityDescrip.Option c) data
-                            let f = FileOps.toFileName (SecurityDescrip.Option c)
-                            Wasabi.uploadPath $"data/{f}" OptionTradeQuotes.BUCKET f
-                            File.Delete $"data/{f}"
+                          try FileOps.saveData (SecurityDescrip.Option c) data
                           with err ->
                             discord.SendAlert $"getContract2: {err}" |> Async.Start
                           lock typeof<SyncCount> (fun () -> acc <- acc + 1)
