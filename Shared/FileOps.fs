@@ -7,7 +7,6 @@ open K4os.Compression.LZ4
 open K4os.Compression.LZ4.Streams
 open ParquetSharp
 
-open Shared.StockTradeQuotes
 open Shared.ThetaData
 
 let toFileName (descrip : SecurityDescrip) =
@@ -16,7 +15,7 @@ let toFileName (descrip : SecurityDescrip) =
   | SecurityDescrip.Option o ->
     $"{o.Root}/%04i{o.Day.Year}%02i{o.Day.Month}%02i{o.Day.Day}/{o.Exp}-{o.Right}-{o.Strike}.parquet.lz4"
 
-let saveData (descrip : SecurityDescrip) (data : Data) =
+let saveData (descrip : SecurityDescrip) (data : StockTradeQuotes.Data) =
   let cols : Column [] =
     [|
       Column<DateTime> "TimeOfTrade"
@@ -59,4 +58,4 @@ let saveData (descrip : SecurityDescrip) (data : Data) =
               ms.CopyTo lz
               lz.Flush ())
           out.Seek (0, SeekOrigin.Begin) |> ignore
-          Wasabi.uploadStream out BUCKET fileName))
+          Wasabi.uploadStream out OptionTradeQuotes.BUCKET fileName))

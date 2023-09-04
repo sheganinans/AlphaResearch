@@ -23,7 +23,14 @@ if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignor
 
 type private SyncCount = class end
 
-let CHUNK_COUNT = 5000
+let CHUNK_COUNT = 10_000
+
+let withChunking retries chunk chunkBy f =
+  retries |> Set.union
+    (chunk
+      |> Seq.chunkBySize chunkBy
+      |> PSeq.withDegreeOfParallelism 4
+      |> (Set.empty |> PSeq.fold (fun retries chunk -> retries |> Set.union (f chunk))))
 
 Async.Sleep 7000 |> Async.RunSynchronously
 seq { 0..(endDay-startDay).Days - 1 }
@@ -46,30 +53,29 @@ seq { 0..(endDay-startDay).Days - 1 }
           |> (Set.empty |> Array.fold (fun retries chunk ->
               let mutable acc = 0
               let ret =
-                retries |> Set.union
-                  (chunk
-                    |> PSeq.withDegreeOfParallelism 16
-                    |> (Set.empty |> PSeq.fold (fun retries c ->
-                      match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
-                      | RspStatus.Err err ->
-                        discord.SendAlert $"getContract1: {err}" |> Async.Start
-                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                        retries.Add c
-                      | RspStatus.Disconnected ->
-                        thetaData.Reset ()
-                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                        retries.Add c
-                      | RspStatus.NoData ->
-                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                        retries
-                      | RspStatus.Ok data ->
-                        async {
-                          try FileOps.saveData (SecurityDescrip.Option c) data
-                          with err ->
-                            discord.SendAlert $"getContract2: {err}" |> Async.Start
+                withChunking retries chunk (CHUNK_COUNT / 4) (fun chunk ->
+                  withChunking retries chunk ((CHUNK_COUNT / 4) / 4) (fun chunk ->
+                    withChunking retries chunk (((CHUNK_COUNT / 4) / 4) / 4)
+                      (Set.empty |> PSeq.fold (fun retries c ->
+                        match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
+                        | RspStatus.Err err ->
+                          discord.SendAlert $"getContract1: {err}" |> Async.Start
                           lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                        } |> Async.Start
-                        retries)))
+                          retries.Add c 
+                        | RspStatus.Disconnected ->
+                          thetaData.Reset ()
+                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                          retries.Add c
+                        | RspStatus.NoData ->
+                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                          retries
+                        | RspStatus.Ok data ->
+                          async {
+                            try FileOps.saveData (SecurityDescrip.Option c) data
+                            with err -> discord.SendAlert $"getContract2: {err}" |> Async.Start
+                            lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                          } |> Async.Start
+                          retries))))
               let mutable sleep = true
               while sleep do
                 Async.Sleep 10 |> Async.RunSynchronously
