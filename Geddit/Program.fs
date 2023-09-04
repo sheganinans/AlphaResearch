@@ -53,7 +53,7 @@
               let r = 
                 let s = ConcurrentDictionary<OptionDescrip, unit> ()
                 let retries = ConcurrentDictionary<OptionDescrip, unit> ()
-                for i,c in chunk |> Array.zip [|1..chunk.Length|] do
+                for c in chunk do
                   s.TryAdd (c, ()) |> ignore
                   while s.Count > 25 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
