@@ -3,6 +3,7 @@ module Shared.Roots
 open System
 open System.Net.Http
 
+open Microsoft.FSharp.Core
 open SpanJson
 
 open Shared.ThetaData
@@ -29,6 +30,9 @@ let getStockDates (root : string) =
     with _ -> return Error $"failed to get dates for: {root}"
   } |> Async.AwaitTask |> Async.RunSynchronously
 
+type ContractRes =
+ | HasData of {| Day: DateTime; Exp: int; Right: string; Root: string; Strike: int |} []
+ | NoData
 
 let getContracts (d : DateTime) =
   task {
@@ -38,9 +42,16 @@ let getContracts (d : DateTime) =
       let! response = client.GetAsync $"http://127.0.0.1:25510/list/contracts/option/trade?start_date=%04i{d.Year}%02i{d.Month}%02i{d.Day}"
       let! c = response.Content.ReadAsStringAsync ()
       return
-        Result.Ok
-          ((JsonSerializer.Generic.Utf16.Deserialize<Rsp<(string * int * int * string) []>> c).response
-           |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |}))
-    with err -> return Error $"{err}"
+        try
+          Result.Ok
+            ((JsonSerializer.Generic.Utf16.Deserialize<Rsp<(string * int * int * string) []>> c).response
+             |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |})
+             |> ContractRes.HasData)
+        with _ ->
+          let err = JsonSerializer.Generic.Utf16.Deserialize<Rsp<int []>> c
+          match err.header.error_type with
+          | "NO_DATA" -> Result.Ok ContractRes.NoData
+          | err -> Result.Error $"getContracts1: {err}"
+    with err -> return Error $"getContracts2: {err}"
   } |> Async.AwaitTask |> Async.RunSynchronously
 
