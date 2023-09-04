@@ -45,10 +45,13 @@
       match cs with
       | ContractRes.NoData -> ()
       | HasData cs ->
+        let CHUNK_PERC = 0.01
         let mutable trySet = cs |> Set.ofSeq
         while trySet.Count <> 0 do
+          let mutable p = 0
           trySet <-
-            withChunking trySet cs (int <| float cs.Length * 0.005) (fun chunk ->
+            withChunking trySet cs (int <| float cs.Length * CHUNK_PERC) (fun chunk ->
+              p <- p + (int <| CHUNK_PERC * 100.)
               let mutable n = 0
               let r = 
                 let s = ConcurrentDictionary<OptionDescrip, unit> ()
@@ -74,9 +77,11 @@
                           discord.SendAlert $"getContract2: {err}" |> Async.Start
                     lock typeof<SyncCount> (fun () -> n <- n + 1)
                   } |> Async.Start
+                discord.SendNotification $"{r.Day}: {p}%%." |> Async.Start
                 retries
-              while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
+              while lock typeof<SyncCount> (fun () -> n < trySet.Count) do
                 Async.Sleep 10 |> Async.RunSynchronously
+              if r.Count > 0 then p <- 0
               r |> Seq.map (fun kv ->  kv.Key) |> Set.ofSeq)
           if trySet.Count <> 0
           then
