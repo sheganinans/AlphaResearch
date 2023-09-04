@@ -55,10 +55,14 @@
               let r = 
                 let s = ConcurrentDictionary<OptionDescrip, unit> ()
                 let retries = ConcurrentDictionary<OptionDescrip, unit> ()
-                for c in chunk do
+                for i,c in chunk |> Array.zip [|1..chunk.Length|] do
+                  printfn $"c: {s.Count} {float i / float chunk.Length}"
                   s.TryAdd (c, ()) |> ignore
-                  while s.Count > 8 do Async.Sleep 1 |> Async.RunSynchronously
+                  while s.Count > 8 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
+                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
+                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
+                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
                     match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
                     | RspStatus.Err err ->
                       discord.SendAlert $"getContract1: {err}" |> Async.Start
@@ -70,6 +74,8 @@
                     | RspStatus.Ok data ->
                         try
                           FileOps.saveData (SecurityDescrip.Option c) data
+                          let fileName = FileOps.toFileName (SecurityDescrip.Option c)
+                          File.Delete fileName
                           s.TryRemove c |> ignore
                         with err ->
                           retries.TryAdd (c, ()) |> ignore
