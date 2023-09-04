@@ -49,9 +49,18 @@ let reqThetaData<'t> (url : string) =
     with _ -> return Disconnected
   }
 
+type OptionDescrip =
+  {
+     Root: string
+     Day: DateTime
+     Exp: int
+     Strike: int
+     Right : string
+  }
+
 type SecurityDescrip =
   | Stock of string * DateTime
-  | Option of {| Root: string; Day: DateTime; Exp: int; Strike: int; Right : string |}
+  | Option of OptionDescrip
 
 let inline extract<'a, 'b>
     (f : SecurityDescrip -> string)

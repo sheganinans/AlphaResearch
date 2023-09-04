@@ -1,91 +1,90 @@
-﻿open System
-open System.IO
+﻿  open System
+  open System.IO
+  open System.Collections.Concurrent
 
-open FSharp.Collections.ParallelSeq
+  open FSharp.Collections.ParallelSeq
 
-open Shared
-open Shared.Roots
-open Shared.ThetaData
-open Shared.Discord
+  open Microsoft.FSharp.Control
+  open Shared
+  open Shared.Roots
+  open Shared.ThetaData
+  open Shared.Discord
 
-let thetaData = Theta ()
+  let thetaData = Theta ()
 
-let startDay = DateTime (2018, 01, 01)
-let endDay = DateTime (2023, 08, 01)
+  let startDay = DateTime (2018, 01, 01)
+  let endDay = DateTime (2023, 08, 01)
 
-let TOTAL_DAYS = (endDay-startDay).Days
+  let TOTAL_DAYS = (endDay-startDay).Days
 
-let finishedSet =
-  try File.ReadLines "finished.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
-  with _ -> Set.empty
+  let finishedSet =
+    try File.ReadLines "finished.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
+    with _ -> Set.empty
 
-if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignore
+  if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignore
 
-type private SyncCount = class end
+  type private SyncCount = class end
+  let CHUNK_COUNT = 50_000
 
-let CHUNK_COUNT = 10_000
+  let withChunking retries chunk chunkBy f =
+    retries |> Set.union
+      (chunk
+        |> Seq.chunkBySize chunkBy
+        |> (Set.empty |> Seq.fold (fun retries chunk -> retries |> Set.union (f chunk))))
 
-let withChunking retries chunk chunkBy f =
-  retries |> Set.union
-    (chunk
-      |> Seq.chunkBySize chunkBy
-      |> PSeq.withDegreeOfParallelism 4
-      |> (Set.empty |> PSeq.fold (fun retries chunk -> retries |> Set.union (f chunk))))
+  Async.Sleep 7000 |> Async.RunSynchronously
 
-Async.Sleep 7000 |> Async.RunSynchronously
-seq { 0..(endDay-startDay).Days - 1 }
-|> Seq.map (startDay.AddDays << float)
-|> Seq.filter (not << finishedSet.Contains)
-|> Seq.map (fun day -> {| Day = day; Contracts = getContracts day |})
-|> Seq.iter (fun r ->
-  discord.SendNotification $"starting: {r.Day}" |> Async.Start
-  match r.Contracts with
-  | Error e -> discord.SendAlert e |> Async.Start
-  | Result.Ok cs ->
-    match cs with
-    | ContractRes.NoData -> ()
-    | HasData cs ->
-      let mutable trySet = cs |> Set.ofSeq
-      while trySet.Count <> 0 do
-        trySet <-
-          cs
-          |> Array.chunkBySize CHUNK_COUNT
-          |> (Set.empty |> Array.fold (fun retries chunk ->
-              let mutable acc = 0
-              let ret =
-                withChunking retries chunk (CHUNK_COUNT / 4) (fun chunk ->
-                  withChunking retries chunk ((CHUNK_COUNT / 4) / 4) (fun chunk ->
-                    withChunking retries chunk (((CHUNK_COUNT / 4) / 4) / 4)
-                      (Set.empty |> PSeq.fold (fun retries c ->
-                        match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
-                        | RspStatus.Err err ->
-                          discord.SendAlert $"getContract1: {err}" |> Async.Start
-                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                          retries.Add c 
-                        | RspStatus.Disconnected ->
-                          thetaData.Reset ()
-                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                          retries.Add c
-                        | RspStatus.NoData ->
-                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                          retries
-                        | RspStatus.Ok data ->
-                          async {
-                            try FileOps.saveData (SecurityDescrip.Option c) data
-                            with err -> discord.SendAlert $"getContract2: {err}" |> Async.Start
-                            lock typeof<SyncCount> (fun () -> acc <- acc + 1)
-                          } |> Async.Start
-                          retries))))
-              let mutable sleep = true
-              while sleep do
+
+  seq { 0..(endDay-startDay).Days - 1 }
+  |> Seq.map (startDay.AddDays << float)
+  |> Seq.filter (not << finishedSet.Contains)
+  |> Seq.map (fun day -> {| Day = day; Contracts = getContracts day |})
+  |> Seq.iter (fun r ->
+    discord.SendNotification $"starting: {r.Day}" |> Async.Start
+    match r.Contracts with
+    | Error e -> discord.SendAlert e |> Async.Start
+    | Result.Ok cs ->
+      match cs with
+      | ContractRes.NoData -> ()
+      | HasData cs ->
+        let mutable trySet = cs |> Set.ofSeq
+        while trySet.Count <> 0 do
+          trySet <-
+            withChunking trySet cs (cs.Length / Environment.ProcessorCount) (fun chunk ->
+              let mutable n = 0
+              let r = 
+                let s = ConcurrentDictionary<OptionDescrip, unit> ()
+                let retries = ConcurrentDictionary<OptionDescrip, unit> ()
+                for c in chunk do
+                  s.TryAdd (c, ()) |> ignore
+                  while s.Count > 8 do Async.Sleep 1 |> Async.RunSynchronously
+                  async {
+                    match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
+                    | RspStatus.Err err ->
+                      discord.SendAlert $"getContract1: {err}" |> Async.Start
+                      retries.TryAdd (c, ()) |> ignore
+                    | RspStatus.Disconnected ->
+                      thetaData.Reset ()
+                      retries.TryAdd (c, ()) |> ignore
+                    | RspStatus.NoData -> ()
+                    | RspStatus.Ok data ->
+                        try
+                          FileOps.saveData (SecurityDescrip.Option c) data
+                          s.TryRemove c |> ignore
+                        with err ->
+                          retries.TryAdd (c, ()) |> ignore
+                          discord.SendAlert $"getContract2: {err}" |> Async.Start
+                  } |> Async.Start
+                retries
+              while lock typeof<SyncCount> (fun () -> n < trySet.Count) do
+                printfn $"sleep: {n} {trySet.Count}" 
                 Async.Sleep 10 |> Async.RunSynchronously
-                lock typeof<SyncCount> (fun () -> sleep <- acc <> CHUNK_COUNT)
-              ret))
-        if trySet.Count <> 0
-        then
-          Async.Sleep 20_000 |> Async.RunSynchronously
-          discord.SendAlert $"restarting {r.Day} with {trySet.Count} saved dates" |> Async.Start)
+              r |> Seq.map (fun kv ->  kv.Key) |> Set.ofSeq)
+          if trySet.Count <> 0
+          then
+            Async.Sleep 20_000 |> Async.RunSynchronously
+            discord.SendAlert $"restarting {r.Day} with {trySet.Count} saved dates" |> Async.Start)
 
-discord.SendAlert "done!" |> Async.RunSynchronously
+  discord.SendAlert "done!" |> Async.RunSynchronously
 
-Async.Sleep 3000 |> Async.RunSynchronously
+  Async.Sleep 3000 |> Async.RunSynchronously

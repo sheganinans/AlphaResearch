@@ -33,7 +33,7 @@ let getStockDates (root : string) =
   } |> Async.AwaitTask |> Async.RunSynchronously
 
 type ContractRes =
- | HasData of {| Day: DateTime; Exp: int; Right: string; Root: string; Strike: int |} []
+ | HasData of OptionDescrip []
  | NoData
 
 type HeaderFs = 
@@ -63,7 +63,7 @@ let getContracts (d : DateTime) =
         try
           Result.Ok
             ((Json.deserialize<RspFs<(string * int * int * string) []>> c).response
-             |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |})
+             |> Array.map (fun (r,e,s,ri) -> { Day = d; Root = r; Exp = e; Strike = s; Right = ri })
              |> ContractRes.HasData)
         with err ->
           try
