@@ -6,6 +6,8 @@ open System.Net.Http
 open Microsoft.FSharp.Core
 open SpanJson
 
+open FSharp.Json
+
 open Shared.ThetaData
 
 let getStockRoots () =
@@ -44,14 +46,18 @@ let getContracts (d : DateTime) =
       return
         try
           Result.Ok
-            ((JsonSerializer.Generic.Utf16.Deserialize<Rsp<(string * int * int * string) []>> c).response
+            ((Json.deserialize<Rsp<(string * int * int * string) []>> c).response
              |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |})
              |> ContractRes.HasData)
-        with _ ->
-          let err = JsonSerializer.Generic.Utf16.Deserialize<Rsp<int []>> c
-          match err.header.error_type with
-          | "NO_DATA" -> Result.Ok ContractRes.NoData
-          | err -> Result.Error $"getContracts1: {err}"
+        with err ->
+          printfn $"{err}"
+          try
+            printfn $"{c[..190]}"
+            let err = (JsonSerializer.Generic.Utf16.Deserialize<Rsp<int []>> c).header
+            match err.error_type with
+            | "NO_DATA" -> Result.Ok NoData
+            | _ -> Error $"getContracts3: {err.error_type}"
+          with err -> Error $"getContracts4: {err}"
     with err -> return Error $"getContracts2: {err}"
   } |> Async.AwaitTask |> Async.RunSynchronously
 
