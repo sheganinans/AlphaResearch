@@ -61,17 +61,18 @@ seq { 0..(endDay-startDay).Days - 1 }
                 discord.SendAlert $"getContract1: {err}" |> Async.Start
               | RspStatus.Disconnected ->
                 thetaData.Reset ()
-                Async.Sleep 1000 |> Async.RunSynchronously
-              | RspStatus.NoData -> retry <- false
+                discord.SendAlert $"disconn: {c}" |> Async.Start
+              | RspStatus.NoData ->
+                retry <- false
+                lock typeof<SyncCount> (fun () -> n <- n + 1)
               | RspStatus.Ok data ->
                   try
                     FileOps.saveData (SecurityDescrip.Option c) data
                     s.TryRemove c |> ignore
                     retry <- false
+                    lock typeof<SyncCount> (fun () -> n <- n + 1)
                   with err ->
                     discord.SendAlert $"getContract2: {err}" |> Async.Start
-                    Async.Sleep 1000 |> Async.RunSynchronously
-            lock typeof<SyncCount> (fun () -> n <- n + 1)
           } |> Async.Start
         while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
           printfn $"sleep: {n} {chunk.Length} %0.2f{100. * (float n / float chunk.Length)}%%"
