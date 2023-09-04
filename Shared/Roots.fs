@@ -36,6 +36,22 @@ type ContractRes =
  | HasData of {| Day: DateTime; Exp: int; Right: string; Root: string; Strike: int |} []
  | NoData
 
+type private Header = 
+  {
+    id : int
+    latency_ms : int
+    error_type : string
+    error_msg  : string
+    next_page  : string
+    format     : string []
+  }
+
+type private Rsp<'t> =
+  {
+    header   : Header
+    response : 't
+  }
+
 let getContracts (d : DateTime) =
   task {
     try
@@ -53,7 +69,7 @@ let getContracts (d : DateTime) =
           printfn $"{err}"
           try
             printfn $"{c[..190]}"
-            let err = (JsonSerializer.Generic.Utf16.Deserialize<Rsp<int []>> c).header
+            let err = (Json.deserialize<Rsp<int []>> c).header
             match err.error_type with
             | "NO_DATA" -> Result.Ok NoData
             | _ -> Error $"getContracts3: {err.error_type}"
