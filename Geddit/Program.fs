@@ -57,9 +57,6 @@
                   s.TryAdd (c, ()) |> ignore
                   while s.Count > 25 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
-                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
-                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
-                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
                     match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
                     | RspStatus.Err err ->
                       discord.SendAlert $"getContract1: {err}" |> Async.Start
@@ -71,8 +68,6 @@
                     | RspStatus.Ok data ->
                         try
                           FileOps.saveData (SecurityDescrip.Option c) data
-                          let fileName = FileOps.toFileName (SecurityDescrip.Option c)
-                          File.Delete fileName
                           s.TryRemove c |> ignore
                         with err ->
                           retries.TryAdd (c, ()) |> ignore
