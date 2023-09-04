@@ -2,8 +2,6 @@
   open System.IO
   open System.Collections.Concurrent
 
-  open FSharp.Collections.ParallelSeq
-
   open Microsoft.FSharp.Control
   open Shared
   open Shared.Roots
@@ -50,15 +48,14 @@
         let mutable trySet = cs |> Set.ofSeq
         while trySet.Count <> 0 do
           trySet <-
-            withChunking trySet cs (cs.Length / Environment.ProcessorCount) (fun chunk ->
+            withChunking trySet cs 500 (fun chunk ->
               let mutable n = 0
               let r = 
                 let s = ConcurrentDictionary<OptionDescrip, unit> ()
                 let retries = ConcurrentDictionary<OptionDescrip, unit> ()
                 for i,c in chunk |> Array.zip [|1..chunk.Length|] do
-                  printfn $"c: {s.Count} {float i / float chunk.Length}"
                   s.TryAdd (c, ()) |> ignore
-                  while s.Count > 8 do Async.Sleep 10 |> Async.RunSynchronously
+                  while s.Count > 25 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
                     if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
                     if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
@@ -80,10 +77,10 @@
                         with err ->
                           retries.TryAdd (c, ()) |> ignore
                           discord.SendAlert $"getContract2: {err}" |> Async.Start
+                    lock typeof<SyncCount> (fun () -> n <- n + 1)
                   } |> Async.Start
                 retries
-              while lock typeof<SyncCount> (fun () -> n < trySet.Count) do
-                printfn $"sleep: {n} {trySet.Count}" 
+              while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
                 Async.Sleep 10 |> Async.RunSynchronously
               r |> Seq.map (fun kv ->  kv.Key) |> Set.ofSeq)
           if trySet.Count <> 0
