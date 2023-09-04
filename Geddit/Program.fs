@@ -50,7 +50,6 @@ seq { 0..(endDay-startDay).Days - 1 }
                   (chunk
                     |> PSeq.withDegreeOfParallelism 16
                     |> (Set.empty |> PSeq.fold (fun retries c ->
-                      printfn $"{c}"
                       match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
                       | RspStatus.Err err ->
                         discord.SendAlert $"getContract1: {err}" |> Async.Start
@@ -81,9 +80,7 @@ seq { 0..(endDay-startDay).Days - 1 }
               let mutable sleep = true
               while sleep do
                 Async.Sleep 1000 |> Async.RunSynchronously
-                lock typeof<SyncCount> (fun () ->
-                  printfn $"sleep {acc} {CHUNK_COUNT}"
-                  sleep <- acc <> CHUNK_COUNT)
+                lock typeof<SyncCount> (fun () -> sleep <- acc <> CHUNK_COUNT)
               ret))
         if trySet.Count <> 0
         then
