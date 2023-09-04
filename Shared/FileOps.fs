@@ -55,7 +55,7 @@ let saveData (descrip : SecurityDescrip) (data : Data) =
     ms.Seek (0, SeekOrigin.Begin) |> ignore
     let settings = LZ4EncoderSettings ()
     settings.CompressionLevel <- LZ4Level.L03_HC
-    use f = File.Create fileName
+    use f = File.Create $"data/{fileName}"
     use out = LZ4Stream.Encode (f, settings)
     ms.CopyTo out
     out.Flush ()

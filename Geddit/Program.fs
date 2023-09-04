@@ -19,11 +19,13 @@ let finishedSet =
   try File.ReadLines "finished.txt" |> Seq.map DateTime.Parse |> Set.ofSeq
   with _ -> Set.empty
 
+if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignore
+
 Async.Sleep 7000 |> Async.RunSynchronously
 seq { 0..(endDay-startDay).Days - 1 }
 |> Seq.map (startDay.AddDays << float)
 |> Seq.filter (not << finishedSet.Contains)
-|> Seq.map (fun day -> {| Day = day; Contracts = Roots.getContracts day |})
+|> Seq.map (fun day -> {| Day = day; Contracts = getContracts day |})
 |> Seq.iter (fun r ->
   discord.SendNotification $"starting: {r.Day}" |> Async.Start
   match r.Contracts with
@@ -53,10 +55,13 @@ seq { 0..(endDay-startDay).Days - 1 }
                 | RspStatus.NoData -> retries
                 | RspStatus.Ok data ->
                   try
+                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
+                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}-%02i{c.Day.Month}-%02i{c.Day.Day}"
+                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}-%02i{c.Day.Month}-%02i{c.Day.Day}" |> ignore
                     FileOps.saveData (SecurityDescrip.Option c) data
                     let f = FileOps.toFileName (SecurityDescrip.Option c)
-                    Wasabi.uploadPath f OptionTradeQuotes.BUCKET f
-                    File.Delete f
+                    Wasabi.uploadPath $"data/{f}" OptionTradeQuotes.BUCKET f
+                    File.Delete $"data/{f}"
                     retries
                   with err ->
                     discord.SendAlert $"getContract2: {err}" |> Async.Start

@@ -36,19 +36,19 @@ type ContractRes =
  | HasData of {| Day: DateTime; Exp: int; Right: string; Root: string; Strike: int |} []
  | NoData
 
-type private Header = 
+type HeaderFs = 
   {
     id : int
     latency_ms : int
-    error_type : string
-    error_msg  : string
-    next_page  : string
-    format     : string []
+    error_type : string option
+    error_msg  : string option
+    next_page  : string option
+    format     : string [] option
   }
 
-type private Rsp<'t> =
+type RspFs<'t> =
   {
-    header   : Header
+    header   : HeaderFs
     response : 't
   }
 
@@ -62,16 +62,14 @@ let getContracts (d : DateTime) =
       return
         try
           Result.Ok
-            ((Json.deserialize<Rsp<(string * int * int * string) []>> c).response
+            ((Json.deserialize<RspFs<(string * int * int * string) []>> c).response
              |> Array.map (fun (r,e,s,ri) -> {| Day = d; Root = r; Exp = e; Strike = s; Right = ri |})
              |> ContractRes.HasData)
         with err ->
-          printfn $"{err}"
           try
-            printfn $"{c[..190]}"
-            let err = (Json.deserialize<Rsp<int []>> c).header
+            let err = (Json.deserialize<RspFs<int []>> c).header
             match err.error_type with
-            | "NO_DATA" -> Result.Ok NoData
+            | Some "NO_DATA" -> Result.Ok NoData
             | _ -> Error $"getContracts3: {err.error_type}"
           with err -> Error $"getContracts4: {err}"
     with err -> return Error $"getContracts2: {err}"
