@@ -21,6 +21,10 @@ let finishedSet =
 
 if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignore
 
+type private SyncCount = class end
+
+let CHUNK_COUNT = 5000
+
 Async.Sleep 7000 |> Async.RunSynchronously
 seq { 0..(endDay-startDay).Days - 1 }
 |> Seq.map (startDay.AddDays << float)
@@ -38,30 +42,49 @@ seq { 0..(endDay-startDay).Days - 1 }
       while trySet.Count <> 0 do
         trySet <-
           cs
-          |> PSeq.withDegreeOfParallelism 256
-          |> (Set.empty |> PSeq.fold (fun retries c ->
-                printfn $"{c}"
-                match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
-                | RspStatus.Err err ->
-                  discord.SendAlert $"getContract1: {err}" |> Async.Start
-                  retries.Add c
-                | RspStatus.Disconnected ->
-                  thetaData.Reset ()
-                  retries.Add c
-                | RspStatus.NoData -> retries
-                | RspStatus.Ok data ->
-                  try
-                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
-                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}-%02i{c.Day.Month}-%02i{c.Day.Day}"
-                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}-%02i{c.Day.Month}-%02i{c.Day.Day}" |> ignore
-                    FileOps.saveData (SecurityDescrip.Option c) data
-                    let f = FileOps.toFileName (SecurityDescrip.Option c)
-                    Wasabi.uploadPath $"data/{f}" OptionTradeQuotes.BUCKET f
-                    File.Delete $"data/{f}"
-                    retries
-                  with err ->
-                    discord.SendAlert $"getContract2: {err}" |> Async.Start
-                    retries.Add c))
+          |> Array.chunkBySize CHUNK_COUNT
+          |> (Set.empty |> Array.fold (fun retries chunk ->
+              let mutable acc = 0
+              let ret =
+                retries |> Set.union
+                  (chunk
+                    |> PSeq.withDegreeOfParallelism 16
+                    |> (Set.empty |> PSeq.fold (fun retries c ->
+                      printfn $"{c}"
+                      match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
+                      | RspStatus.Err err ->
+                        discord.SendAlert $"getContract1: {err}" |> Async.Start
+                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                        retries.Add c
+                      | RspStatus.Disconnected ->
+                        thetaData.Reset ()
+                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                        retries.Add c
+                      | RspStatus.NoData ->
+                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                        retries
+                      | RspStatus.Ok data ->
+                        async {
+                          try
+                            if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
+                            if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
+                            then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
+                            FileOps.saveData (SecurityDescrip.Option c) data
+                            let f = FileOps.toFileName (SecurityDescrip.Option c)
+                            Wasabi.uploadPath $"data/{f}" OptionTradeQuotes.BUCKET f
+                            File.Delete $"data/{f}"
+                          with err ->
+                            discord.SendAlert $"getContract2: {err}" |> Async.Start
+                        } |> Async.Start
+                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
+                        retries)))
+              let mutable sleep = true
+              while sleep do
+                Async.Sleep 1000 |> Async.RunSynchronously
+                lock typeof<SyncCount> (fun () ->
+                  printfn $"sleep {acc} {CHUNK_COUNT}"
+                  sleep <- acc <> CHUNK_COUNT)
+              ret))
         if trySet.Count <> 0
         then
           Async.Sleep 20_000 |> Async.RunSynchronously

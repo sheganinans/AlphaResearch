@@ -14,7 +14,7 @@ let toFileName (descrip : SecurityDescrip) =
   match descrip with
   | SecurityDescrip.Stock (symbol, date) -> $"{symbol}/%04i{date.Year}-%02i{date.Month}-%02i{date.Day}.parquet.lz4"
   | SecurityDescrip.Option o ->
-    $"{o.Root}/%04i{o.Day.Year}%02i{o.Day.Month}%02i{o.Day.Day}-{o.Exp}-{o.Right}-{o.Strike}.parquet.lz4"
+    $"{o.Root}/%04i{o.Day.Year}%02i{o.Day.Month}%02i{o.Day.Day}/{o.Exp}-{o.Right}-{o.Strike}.parquet.lz4"
 
 let saveData (descrip : SecurityDescrip) (data : Data) =
   let cols : Column [] =
