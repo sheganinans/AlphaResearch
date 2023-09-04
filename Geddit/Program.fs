@@ -56,8 +56,7 @@ seq { 0..(endDay-startDay).Days - 1 }
                   retries
                 with err ->
                   discord.SendAlert $"getContract2: {err}" |> Async.Start
-                  retries.Add c
-                )))))
+                  retries.Add c)))))
       if trySet.Count <> 0
       then
         Async.Sleep 20_000 |> Async.RunSynchronously
