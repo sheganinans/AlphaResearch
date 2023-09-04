@@ -55,7 +55,7 @@
                 let retries = ConcurrentDictionary<OptionDescrip, unit> ()
                 for c in chunk do
                   s.TryAdd (c, ()) |> ignore
-                  while s.Count > 32 do Async.Sleep 10 |> Async.RunSynchronously
+                  while s.Count > 40 do Async.Sleep 10 |> Async.RunSynchronously
                   async {
                     match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
                     | RspStatus.Err err ->
