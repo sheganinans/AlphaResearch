@@ -74,12 +74,12 @@ seq { 0..(endDay-startDay).Days - 1 }
                             File.Delete $"data/{f}"
                           with err ->
                             discord.SendAlert $"getContract2: {err}" |> Async.Start
+                          lock typeof<SyncCount> (fun () -> acc <- acc + 1)
                         } |> Async.Start
-                        lock typeof<SyncCount> (fun () -> acc <- acc + 1)
                         retries)))
               let mutable sleep = true
               while sleep do
-                Async.Sleep 1000 |> Async.RunSynchronously
+                Async.Sleep 10 |> Async.RunSynchronously
                 lock typeof<SyncCount> (fun () -> sleep <- acc <> CHUNK_COUNT)
               ret))
         if trySet.Count <> 0
