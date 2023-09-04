@@ -51,7 +51,7 @@ seq { 0..(endDay-startDay).Days - 1 }
                 try
                   FileOps.saveData (SecurityDescrip.Option c) data
                   let f = FileOps.toFileName (SecurityDescrip.Option c)
-                  Wasabi.uploadPath f StockTradeQuotes.BUCKET f
+                  Wasabi.uploadPath f OptionTradeQuotes.BUCKET f
                   File.Delete f
                   retries
                 with err ->
