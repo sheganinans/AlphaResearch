@@ -77,9 +77,9 @@ seq { 0..(endDay-startDay).Days - 1 }
         while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
           printfn $"sleep, {r.Day}: %0.2f{100. * (float p / float cs.Length)}%%"
           Async.Sleep 10 |> Async.RunSynchronously
-        use sw = File.AppendText "finished.txt" in sw.WriteLine (r.Day.ToString ())
         p <- p + n
-        discord.SendNotification $"{r.Day}: %0.2f{100. * (float p / float cs.Length)}%%" |> Async.Start))
+        discord.SendNotification $"{r.Day}: %0.2f{100. * (float p / float cs.Length)}%%" |> Async.Start)
+  use sw = File.AppendText "finished.txt" in sw.WriteLine (r.Day.ToString ()))
 
 discord.SendAlert "done!" |> Async.RunSynchronously
 
