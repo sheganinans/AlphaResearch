@@ -67,6 +67,9 @@ seq { 0..(endDay-startDay).Days - 1 }
                 lock typeof<SyncCount> (fun () -> n <- n + 1)
               | RspStatus.Ok data ->
                   try
+                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
+                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
+                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
                     FileOps.saveData (SecurityDescrip.Option c) data
                     s.TryRemove c |> ignore
                     retry <- false

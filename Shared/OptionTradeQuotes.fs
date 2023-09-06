@@ -3,7 +3,7 @@ module Shared.OptionTradeQuotes
 open System
 open Shared.ThetaData
 
-let BUCKET = "theta-data-options-trade-quotes"
+let BUCKET = "td-options-trade-quotes"
 
 type Data = StockTradeQuotes.Data
 
