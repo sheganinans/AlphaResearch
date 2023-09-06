@@ -26,11 +26,11 @@ let finishedSet =
 if not <| Directory.Exists "data" then Directory.CreateDirectory "data" |> ignore
 
 type private SyncCount = class end
-let CHUNK_COUNT = 1000
+let CHUNK_COUNT = 5000
 
 Async.Sleep 7000 |> Async.RunSynchronously
 
-let HTML_CONCURRENCY = 16
+let HTML_CONCURRENCY = 40
 
 seq { 0..(endDay-startDay).Days - 1 }
 |> Seq.map (startDay.AddDays << float)
