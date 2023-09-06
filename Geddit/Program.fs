@@ -65,6 +65,7 @@ seq { 0..(endDay-startDay).Days - 1 }
     | HasData cs ->
       let s = ConcurrentDictionary<OptionDescrip, unit> ()
       counter.Post (NewDay (r.Day, cs.Length))
+      Async.Sleep 2000 |> Async.RunSynchronously
       cs
       |> Array.iter (fun c ->
         s.TryAdd (c, ()) |> ignore
