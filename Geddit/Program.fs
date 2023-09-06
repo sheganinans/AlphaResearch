@@ -47,7 +47,7 @@ let counter = MailboxProcessor.Start (fun inbox ->
         day <- d
         tot <- t
       | Incr -> i <- i + 1
-      if i % 5000 = 0 then discord.SendAlert $"{day}: %0.2f{100. * (float i / float tot)}%%" |> Async.Start
+      if i % 5000 = 0 then discord.SendNotification $"{day}: %0.2f{100. * (float i / float tot)}%%" |> Async.Start
   })
 
 seq { 0..(endDay-startDay).Days - 1 }
