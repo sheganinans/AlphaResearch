@@ -32,56 +32,66 @@ Async.Sleep 7000 |> Async.RunSynchronously
 
 let HTML_CONCURRENCY = 40
 
+type Counter =
+  | NewDay of DateTime * int
+  | Incr
+
+let counter = MailboxProcessor.Start (fun inbox ->
+  let mutable day = DateTime.Now
+  let mutable i = 0
+  let mutable tot = 0
+  async {
+    while true do
+      match! inbox.Receive () with
+      | NewDay (d, t) ->
+        day <- d
+        tot <- t
+      | Incr -> i <- i + i
+      if i % 5000 = 0 then discord.SendAlert $"{day}: %0.2f{100. * (float i / float tot)}%%" |> Async.Start
+  })
+
 seq { 0..(endDay-startDay).Days - 1 }
 |> Seq.map (startDay.AddDays << float)
 |> Seq.filter (not << finishedSet.Contains)
 |> Seq.map (fun day -> {| Day = day; Contracts = getContracts day |})
 |> Seq.iter (fun r ->
   discord.SendNotification $"starting: {r.Day}" |> Async.Start
-  let mutable p = 0
   match r.Contracts with
   | Error e -> discord.SendAlert e |> Async.Start
   | Result.Ok cs ->
     match cs with
     | ContractRes.NoData -> ()
     | HasData cs ->
+      let s = ConcurrentDictionary<OptionDescrip, unit> ()
+      counter.Post (NewDay (r.Day, cs.Length))
       cs
-      |> Seq.chunkBySize CHUNK_COUNT
-      |> Seq.iter (fun chunk ->
-        let mutable n = 0
-        let s = ConcurrentDictionary<OptionDescrip, unit> ()
-        for c in chunk do
-          s.TryAdd (c, ()) |> ignore
-          while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
-          async {
-            let mutable retry = true
-            while retry do
-              match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
-              | RspStatus.Err err ->
-                discord.SendAlert $"getContract1: {err}" |> Async.Start
-              | RspStatus.Disconnected ->
-                thetaData.Reset ()
-              | RspStatus.NoData ->
-                s.TryRemove c |> ignore
-                retry <- false
-                lock typeof<SyncCount> (fun () -> n <- n + 1)
-              | RspStatus.Ok data ->
-                  try
-                    if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
-                    if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
-                    then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
-                    FileOps.saveData (SecurityDescrip.Option c) data
-                    s.TryRemove c |> ignore
-                    retry <- false
-                    lock typeof<SyncCount> (fun () -> n <- n + 1)
-                  with err ->
-                    discord.SendAlert $"getContract2: {err}" |> Async.Start
-          } |> Async.Start
-        while lock typeof<SyncCount> (fun () -> n < chunk.Length) do
-          printfn $"sleep, {r.Day}: %0.2f{100. * (float p / float cs.Length)}%%"
-          Async.Sleep 10 |> Async.RunSynchronously
-        p <- p + n
-        discord.SendNotification $"{r.Day}: %0.2f{100. * (float p / float cs.Length)}%%" |> Async.Start)
+      |> Array.iter (fun c ->
+        s.TryAdd (c, ()) |> ignore
+        while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
+        async {
+          let mutable retry = true
+          while retry do
+            match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
+            | RspStatus.Err err ->
+              discord.SendAlert $"getContract1: {err}" |> Async.Start
+            | RspStatus.Disconnected ->
+              thetaData.Reset ()
+            | RspStatus.NoData ->
+              counter.Post Incr
+              s.TryRemove c |> ignore
+              retry <- false
+            | RspStatus.Ok data ->
+                try
+                  if not <| Directory.Exists $"data/{c.Root}" then Directory.CreateDirectory $"data/{c.Root}" |> ignore
+                  if not <| Directory.Exists $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}"
+                  then Directory.CreateDirectory $"data/{c.Root}/%04i{c.Day.Year}%02i{c.Day.Month}%02i{c.Day.Day}" |> ignore
+                  FileOps.saveData (SecurityDescrip.Option c) data
+                  counter.Post Incr
+                  s.TryRemove c |> ignore
+                  retry <- false
+                with err ->
+                  discord.SendAlert $"getContract2: {err}" |> Async.Start
+        } |> Async.Start)
     use sw = File.AppendText "finished.txt" in sw.WriteLine (r.Day.ToString ()))
 
 discord.SendAlert "done!" |> Async.RunSynchronously
