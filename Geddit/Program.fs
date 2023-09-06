@@ -79,7 +79,7 @@ seq { 0..(endDay-startDay).Days - 1 }
           Async.Sleep 10 |> Async.RunSynchronously
         p <- p + n
         discord.SendNotification $"{r.Day}: %0.2f{100. * (float p / float cs.Length)}%%" |> Async.Start)
-  use sw = File.AppendText "finished.txt" in sw.WriteLine (r.Day.ToString ()))
+    use sw = File.AppendText "finished.txt" in sw.WriteLine (r.Day.ToString ()))
 
 discord.SendAlert "done!" |> Async.RunSynchronously
 
