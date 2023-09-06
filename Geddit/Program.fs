@@ -44,6 +44,7 @@ let counter = MailboxProcessor.Start (fun inbox ->
     while true do
       match! inbox.Receive () with
       | NewDay (d, t) ->
+        i <- 0
         day <- d
         tot <- t
       | Incr -> i <- i + 1
