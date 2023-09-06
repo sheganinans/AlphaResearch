@@ -44,7 +44,7 @@ type Singleton =
     lock typeof<SyncRoot> (fun () ->
       if box Singleton.instance = null then
         Singleton.instance <- Discord ()
-        Thread.Sleep 3_000)
+        Thread.Sleep 7_000)
     Singleton.instance    
 
 let discord = Singleton.Instance

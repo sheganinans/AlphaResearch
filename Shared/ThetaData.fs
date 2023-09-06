@@ -36,6 +36,7 @@ let reqThetaData<'t> (url : string) =
   task {
     try
       use client = new HttpClient ()
+      client.Timeout <- TimeSpan.FromSeconds 30
       client.DefaultRequestHeaders.Add ("Accept", "application/json")
       let! response = client.GetAsync url
       let! c = response.Content.ReadAsStringAsync ()
