@@ -30,7 +30,7 @@ let CHUNK_COUNT = 1000
 
 Async.Sleep 7000 |> Async.RunSynchronously
 
-let HTML_CONCURRENCY = 2
+let HTML_CONCURRENCY = 16
 
 seq { 0..(endDay-startDay).Days - 1 }
 |> Seq.map (startDay.AddDays << float)
