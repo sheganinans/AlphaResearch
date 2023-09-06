@@ -78,7 +78,9 @@ seq { 0..(endDay-startDay).Days - 1 }
           while retry do
             match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
             | RspStatus.Err err -> discord.SendAlert $"getContract1: {err}" |> Async.Start
-            | RspStatus.Disconnected -> thetaData.Reset ()
+            | RspStatus.Disconnected ->
+              thetaData.Reset ()
+              do! Async.Sleep 10_000
             | RspStatus.NoData -> finishedSuccessfully ()
             | RspStatus.Ok data ->
                 try
