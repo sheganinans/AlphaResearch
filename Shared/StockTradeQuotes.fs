@@ -1,12 +1,8 @@
 module Shared.StockTradeQuotes
 
 open System
-open System.IO
 
-open K4os.Compression.LZ4
-open K4os.Compression.LZ4.Streams
 open Microsoft.FSharp.Collections
-open ParquetSharp
 
 open Shared.ThetaData
 
