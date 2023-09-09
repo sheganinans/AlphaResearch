@@ -66,8 +66,8 @@ chunked ()
     |> Set.ofList
   if job.Count + noData.Count = 2039
   then
-    good <- good + 1
     discord.SendNotification $"{root}: all good." |> Async.Start
+    good <- good + 1
   else
     discord.SendNotification $"{root}: requires fix" |> Async.Start
     bad <- bad + 1
@@ -94,4 +94,4 @@ chunked ()
           FileOps.saveData (SecurityDescrip.Stock (root, day)) data
           finishedSuccessfully ()
       } |> Async.Start)
-  discord.SendNotification $"perc good: {100. * (float good / float (good + bad))}" |> Async.Start)
+  discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start)
