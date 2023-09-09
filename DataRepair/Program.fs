@@ -42,6 +42,8 @@ let HTML_CONCURRENCY = 16
 
 let thetaData = Theta ()
 
+type private SyncNoData = class end
+
 chunked ()
 |> Seq.iter (fun job ->
   let root = job[0].Split('/')[0]
@@ -71,6 +73,9 @@ chunked ()
   else
     discord.SendNotification $"{root}: requires fix" |> Async.Start
     bad <- bad + 1
+    Directory.CreateDirectory root |> ignore
+    let noDataFile = $"./{root}/nodata.txt"
+    use sw = new StreamWriter (noDataFile)
     let s = ConcurrentDictionary<DateTime, unit> ()
     seq { 0..(endDay-startDay).Days }
     |> Seq.map (startDay.AddDays << float)
@@ -83,15 +88,22 @@ chunked ()
         let inline finishedSuccessfully () =
           s.TryRemove day |> ignore
           retry <- false
-        match! StockTradeQuotes.reqAndConcat root day with
-        | RspStatus.Err err -> discord.SendAlert $"repair1: {err}" |> Async.Start
-        | RspStatus.Disconnected ->
-          thetaData.Reset ()
-          do! Async.Sleep 10_000
-        | RspStatus.NoData ->
-          finishedSuccessfully ()
-        | RspStatus.Ok data ->
-          FileOps.saveData (SecurityDescrip.Stock (root, day)) data
-          finishedSuccessfully ()
-      } |> Async.Start)
+        while retry do
+          match! StockTradeQuotes.reqAndConcat root day with
+          | RspStatus.Err err -> discord.SendAlert $"repair1: {err}" |> Async.Start
+          | RspStatus.Disconnected ->
+            thetaData.Reset ()
+            do! Async.Sleep 10_000
+          | RspStatus.NoData ->
+            lock typeof<SyncNoData> (fun () -> sw.WriteLine (day.ToString ()))
+            finishedSuccessfully ()
+          | RspStatus.Ok data ->
+            FileOps.saveData (SecurityDescrip.Stock (root, day)) data
+            finishedSuccessfully ()
+        } |> Async.Start)
+    async {
+      while s.Count <> 0 do do! Async.Sleep 1000
+      Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
+      Directory.Delete (root, true)
+    } |> Async.Start
   discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start)
