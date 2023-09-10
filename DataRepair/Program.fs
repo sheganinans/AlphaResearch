@@ -10,12 +10,6 @@ open Shared.ThetaData
 
 let BUCKET = StockTradeQuotes.BUCKET
 
-// for o in Wasabi.getWasabiObjs BUCKET "" do
-//   if o.Key.Split('/').Length = 3
-//   then
-//     printfn $"{o.Key}"
-//     Wasabi.deleteFile BUCKET o.Key |> ignore
-
 let chunked () =
   let mutable currSym = ""
   let mutable acc = []
@@ -107,6 +101,7 @@ chunked ()
     async {
       while s.Count <> 0 do do! Async.Sleep 1000
       Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
-      Directory.Delete (root, true)
+      Directory.Delete root
+      discord.SendNotification $"{root} fixed." |> Async.Start
     } |> Async.Start
   discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start)
