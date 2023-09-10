@@ -52,10 +52,13 @@ chunked ()
     | None -> Set.empty
     | Some f ->
       Wasabi.downloadFile f BUCKET f
-      File.ReadLines f
-      |> Seq.map (fun s -> try Some <| DateTime.Parse s with _ -> None)
-      |> Seq.choose id
-      |> Set.ofSeq 
+      let ret =
+        File.ReadLines f
+        |> Seq.map (fun s -> try Some <| DateTime.Parse s with _ -> None)
+        |> Seq.choose id
+        |> Set.ofSeq
+      File.Delete f
+      ret
   let job =
     job
     |> List.filter (fun s -> (not <| s.Contains "nodata.txt") && (not <| s.Contains ".err"))
