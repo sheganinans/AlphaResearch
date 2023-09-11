@@ -4,6 +4,7 @@ open System.IO
 
 open Amazon.S3.Model
 
+open FSharp.Collections.ParallelSeq
 open Shared
 open Shared.Discord
 open Shared.ThetaData
@@ -32,14 +33,16 @@ let endDay = DateTime (2023, 08, 01)
 let mutable good = 0
 let mutable bad = 0
 
-let HTML_CONCURRENCY = 16
+let HTML_CONCURRENCY = 40
 
 let thetaData = Theta ()
 
 type private SyncNoData = class end
 
+let s = ConcurrentDictionary<string * DateTime, unit> ()
+
 chunked ()
-|> Seq.iter (fun job ->
+|> PSeq.iter (fun job ->
   let root = job[0].Split('/')[0]
   let mutable noData = 
     match job |> List.tryFind (fun s -> s.Contains "nodata.txt") with
@@ -63,26 +66,26 @@ chunked ()
       with _ -> None)
     |> List.choose id
     |> Set.ofList
+  printfn $"{job.Count} {noData.Count} {job.Count + noData.Count}"
   if job.Count + noData.Count = 2039
   then good <- good + 1
   else
-    discord.SendNotification $"{root}: requires fix" |> Async.Start
+    printfn $"{root}: requires fix"
     bad <- bad + 1
     Directory.CreateDirectory root |> ignore
     let noDataFile = $"{root}/nodata.txt"
     use sw = new StreamWriter (noDataFile)
     noData |> Set.iter (fun d -> sw.WriteLine (d.ToString ()))
-    let s = ConcurrentDictionary<DateTime, unit> ()
     seq { 0..(endDay-startDay).Days }
     |> Seq.map (startDay.AddDays << float)
     |> Seq.filter (fun day -> (not <| noData.Contains day) && (not <| job.Contains day))
     |> Seq.iter (fun day ->
-      s.TryAdd (day, ()) |> ignore
+      s.TryAdd ((root, day), ()) |> ignore
       while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
       async {
         let mutable retry = true
         let inline finishedSuccessfully () =
-          s.TryRemove day |> ignore
+          s.TryRemove ((root, day)) |> ignore
           retry <- false
         while retry do
           match! StockTradeQuotes.reqAndConcat root day with
@@ -99,12 +102,14 @@ chunked ()
         } |> Async.Start)
     let mutable finished = false
     async {
-      while s.Count <> 0 do do! Async.Sleep 1000
+      while s.Keys |> Seq.filter (fun (r,_) -> r = root) |> Seq.length <> 0 do do! Async.Sleep 1000
+      sw.Flush ()
+      sw.Close ()
       Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
       File.Delete noDataFile
-      discord.SendNotification $"{root} fixed." |> Async.Start
+      printfn $"{root} fixed."
       finished <- true
     } |> Async.Start
     while not finished do Async.Sleep 1000 |> Async.RunSynchronously
-    discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start
+    printfn $"perc good: %0.2f{100. * (float good / float (good + bad))}"
   Directory.Delete root)
