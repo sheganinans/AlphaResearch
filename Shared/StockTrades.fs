@@ -3,6 +3,8 @@ module Shared.StockTrades
 open System
 open System.IO
 
+open K4os.Compression.LZ4
+open K4os.Compression.LZ4.Streams
 open ParquetSharp
 
 open Shared.ThetaData
@@ -48,9 +50,10 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
     |]
   let fileName = $"%04i{date.Year}-%02i{date.Month}-%02i{date.Day}.parquet.lz4"
   (
-    use f = File.Create fileName
+    use ms = new MemoryStream ()
+    use os = new IO.ManagedOutputStream (ms)
     (
-      use f = new ParquetFileWriter (f, cols, compression=Compression.Lz4)
+      use f = new ParquetFileWriter (os, cols)
       use rowGroup = f.AppendRowGroup ()
       use w = rowGroup.NextColumn().LogicalWriter<DateTime> () in w.WriteBatch data.time
       use w = rowGroup.NextColumn().LogicalWriter<int>() in w.WriteBatch data.sequence
@@ -58,7 +61,15 @@ let saveData (symbol : string) (date : DateTime) (data : Data) =
       use w = rowGroup.NextColumn().LogicalWriter<int>() in w.WriteBatch data.condition
       use w = rowGroup.NextColumn().LogicalWriter<float>() in w.WriteBatch data.price
     )
+    ms.Seek (0, SeekOrigin.Begin) |> ignore
+    let settings = LZ4EncoderSettings ()
+    settings.CompressionLevel <- LZ4Level.L03_HC
+    use f = File.Create fileName
+    use out = LZ4Stream.Encode (f, settings)
+    ms.CopyTo out
+    out.Flush ()
     f.Flush ()
+    out.Close ()
     f.Close ()
   )
   Wasabi.uploadPath fileName BUCKET fileName
