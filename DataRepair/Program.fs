@@ -73,6 +73,7 @@ chunked ()
     Directory.CreateDirectory root |> ignore
     let noDataFile = $"./{root}/nodata.txt"
     use sw = new StreamWriter (noDataFile)
+    noData |> Set.iter (fun d -> sw.WriteLine (d.ToString ()))
     let s = ConcurrentDictionary<DateTime, unit> ()
     seq { 0..(endDay-startDay).Days }
     |> Seq.map (startDay.AddDays << float)
