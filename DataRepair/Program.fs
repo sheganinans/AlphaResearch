@@ -71,7 +71,7 @@ chunked ()
     discord.SendNotification $"{root}: requires fix" |> Async.Start
     bad <- bad + 1
     Directory.CreateDirectory root |> ignore
-    let noDataFile = $"./{root}/nodata.txt"
+    let noDataFile = $"{root}/nodata.txt"
     use sw = new StreamWriter (noDataFile)
     noData |> Set.iter (fun d -> sw.WriteLine (d.ToString ()))
     let s = ConcurrentDictionary<DateTime, unit> ()
@@ -101,7 +101,9 @@ chunked ()
         } |> Async.Start)
     async {
       while s.Count <> 0 do do! Async.Sleep 1000
+      sw.Close ()
       Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
+      File.Delete noDataFile
       Directory.Delete root
       discord.SendNotification $"{root} fixed." |> Async.Start
     } |> Async.Start
