@@ -64,9 +64,7 @@ chunked ()
     |> List.choose id
     |> Set.ofList
   if job.Count + noData.Count = 2039
-  then
-    discord.SendNotification $"{root}: all good." |> Async.Start
-    good <- good + 1
+  then good <- good + 1
   else
     discord.SendNotification $"{root}: requires fix" |> Async.Start
     bad <- bad + 1
@@ -99,12 +97,14 @@ chunked ()
             FileOps.saveData (SecurityDescrip.Stock (root, day)) data
             finishedSuccessfully ()
         } |> Async.Start)
+    let mutable finished = false
     async {
       while s.Count <> 0 do do! Async.Sleep 1000
-      sw.Close ()
       Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
       File.Delete noDataFile
-      Directory.Delete root
       discord.SendNotification $"{root} fixed." |> Async.Start
+      finished <- true
     } |> Async.Start
-  discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start)
+    while not finished do Async.Sleep 1000 |> Async.RunSynchronously
+    discord.SendNotification $"perc good: %0.2f{100. * (float good / float (good + bad))}" |> Async.Start
+  Directory.Delete root)
