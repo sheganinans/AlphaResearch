@@ -46,6 +46,12 @@ let ds =
   |> Seq.map (startDay.AddDays << float)
   |> Set.ofSeq
 
+Wasabi.getWasabiObjs OptionTradeQuotes.BUCKET ""
+|> Seq.filter (fun f -> not <| f.Key.StartsWith "data/")
+|> Seq.iter (fun f ->
+  printfn $"{f.Key}"
+  Wasabi.deleteFile OptionTradeQuotes.BUCKET f.Key)
+
 chunked ()
 |> PSeq.iter (fun job ->
   let root = job[0].Split('/')[0]

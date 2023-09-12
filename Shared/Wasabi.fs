@@ -28,7 +28,7 @@ let downloadFile (file : string) (bucket : string) (key : string) =
 
 let deleteFile (bucket : string) (key : string) =
   use u = new TransferUtility (s3)
-  u.S3Client.DeleteObjectAsync (bucket, key) |> Async.AwaitTask |> Async.RunSynchronously
+  u.S3Client.DeleteObjectAsync (bucket, key) |> Async.AwaitTask |> Async.Ignore |> Async.RunSynchronously
 
 let getWasabiObjs (bucket : string) (prefix : string) =
   let req = ListObjectsRequest ()
