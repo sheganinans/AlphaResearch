@@ -10,7 +10,7 @@ open Shared.Discord
 
 let thetaData = Theta ()
 
-let startDay = DateTime (2018, 01, 01)
+let startDay = DateTime (2020, 06, 26)
 let endDay = DateTime (2023, 08, 01)
 
 let TOTAL_DAYS = (endDay-startDay).Days
