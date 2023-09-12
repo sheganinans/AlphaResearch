@@ -15,7 +15,7 @@ let toFileName (descrip : SecurityDescrip) =
   | SecurityDescrip.Option o ->
     $"data/{o.Root}/%04i{o.Day.Year}%02i{o.Day.Month}%02i{o.Day.Day}/{o.Exp}-{o.Right}-{o.Strike}.parquet.lz4"
 
-let saveData (descrip : SecurityDescrip) (data : StockTradeQuotes.Data) =
+let saveData (descrip : SecurityDescrip) (bucket : string) (data : StockTradeQuotes.Data) =
   let cols : Column [] =
     [|
       Column<DateTime> "TimeOfTrade"
@@ -62,5 +62,5 @@ let saveData (descrip : SecurityDescrip) (data : StockTradeQuotes.Data) =
     out.Close ()
     f.Close ()
   )
-  Wasabi.uploadPath fileName OptionTradeQuotes.BUCKET fileName
+  Wasabi.uploadPath fileName bucket fileName
   File.Delete fileName
