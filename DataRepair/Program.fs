@@ -46,12 +46,6 @@ let ds =
   |> Seq.map (startDay.AddDays << float)
   |> Set.ofSeq
 
-Wasabi.getWasabiObjs OptionTradeQuotes.BUCKET ""
-|> Seq.filter (fun f -> not <| f.Key.StartsWith "data/")
-|> Seq.iter (fun f ->
-  printfn $"{f.Key}"
-  Wasabi.deleteFile OptionTradeQuotes.BUCKET f.Key)
-
 chunked ()
 |> PSeq.iter (fun job ->
   let root = job[0].Split('/')[0]
@@ -118,7 +112,7 @@ chunked ()
               finishedSuccessfully ()
             | RspStatus.Ok data ->
               printfn $"ok: {root}"
-              FileOps.saveData (SecurityDescrip.Stock (root, day)) StockTradeQuotes.BUCKET data
+              FileOps.saveData (SecurityDescrip.Stock (root, day)) BUCKET data
               finishedSuccessfully ()
           } |> Async.Start)
       let mutable finished = false
@@ -126,7 +120,7 @@ chunked ()
         while s.Keys |> Seq.filter (fun (r,_) -> r = root) |> Seq.length <> 0 do do! Async.Sleep 1000
         sw.Flush ()
         sw.Close ()
-        Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
+        Wasabi.uploadPath noDataFile BUCKET noDataFile
         File.Delete noDataFile
         printfn $"{root} fixed."
         finished <- true
