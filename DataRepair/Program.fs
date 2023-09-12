@@ -66,50 +66,53 @@ chunked ()
       with _ -> None)
     |> List.choose id
     |> Set.ofList
-  printfn $"{job.Count} {noData.Count} {job.Count + noData.Count}"
-  if job.Count + noData.Count = 2039
+  let c = job.Count + noData.Count
+  if c = 2039
   then good <- good + 1
   else
     printfn $"{root}: requires fix"
     bad <- bad + 1
-    Directory.CreateDirectory root |> ignore
-    let noDataFile = $"{root}/nodata.txt"
-    use sw = new StreamWriter (noDataFile)
-    noData |> Set.iter (fun d -> sw.WriteLine (d.ToString ()))
-    seq { 0..(endDay-startDay).Days }
-    |> Seq.map (startDay.AddDays << float)
-    |> Seq.filter (fun day -> (not <| noData.Contains day) && (not <| job.Contains day))
-    |> Seq.iter (fun day ->
-      s.TryAdd ((root, day), ()) |> ignore
-      while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
+    if c > 2039
+    then printfn $"{root}. js: {job.Count}. nd:{noData.Count}. +:{c}."
+    else
+      Directory.CreateDirectory root |> ignore
+      let noDataFile = $"{root}/nodata.txt"
+      use sw = new StreamWriter (noDataFile)
+      noData |> Set.iter (fun d -> sw.WriteLine (d.ToString ()))
+      seq { 0..(endDay-startDay).Days }
+      |> Seq.map (startDay.AddDays << float)
+      |> Seq.filter (fun day -> (not <| noData.Contains day) && (not <| job.Contains day))
+      |> Seq.iter (fun day ->
+        s.TryAdd ((root, day), ()) |> ignore
+        while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
+        async {
+          let mutable retry = true
+          let inline finishedSuccessfully () =
+            s.TryRemove ((root, day)) |> ignore
+            retry <- false
+          while retry do
+            match! StockTradeQuotes.reqAndConcat root day with
+            | RspStatus.Err err -> discord.SendAlert $"repair1: {err}" |> Async.Start
+            | RspStatus.Disconnected ->
+              thetaData.Reset ()
+              do! Async.Sleep 10_000
+            | RspStatus.NoData ->
+              lock typeof<SyncNoData> (fun () -> sw.WriteLine (day.ToString ()))
+              finishedSuccessfully ()
+            | RspStatus.Ok data ->
+              FileOps.saveData (SecurityDescrip.Stock (root, day)) data
+              finishedSuccessfully ()
+          } |> Async.Start)
+      let mutable finished = false
       async {
-        let mutable retry = true
-        let inline finishedSuccessfully () =
-          s.TryRemove ((root, day)) |> ignore
-          retry <- false
-        while retry do
-          match! StockTradeQuotes.reqAndConcat root day with
-          | RspStatus.Err err -> discord.SendAlert $"repair1: {err}" |> Async.Start
-          | RspStatus.Disconnected ->
-            thetaData.Reset ()
-            do! Async.Sleep 10_000
-          | RspStatus.NoData ->
-            lock typeof<SyncNoData> (fun () -> sw.WriteLine (day.ToString ()))
-            finishedSuccessfully ()
-          | RspStatus.Ok data ->
-            FileOps.saveData (SecurityDescrip.Stock (root, day)) data
-            finishedSuccessfully ()
-        } |> Async.Start)
-    let mutable finished = false
-    async {
-      while s.Keys |> Seq.filter (fun (r,_) -> r = root) |> Seq.length <> 0 do do! Async.Sleep 1000
-      sw.Flush ()
-      sw.Close ()
-      Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
-      File.Delete noDataFile
-      printfn $"{root} fixed."
-      finished <- true
-    } |> Async.Start
-    while not finished do Async.Sleep 1000 |> Async.RunSynchronously
-    printfn $"perc good: %0.2f{100. * (float good / float (good + bad))}"
-  Directory.Delete root)
+        while s.Keys |> Seq.filter (fun (r,_) -> r = root) |> Seq.length <> 0 do do! Async.Sleep 1000
+        sw.Flush ()
+        sw.Close ()
+        Wasabi.uploadPath noDataFile StockTradeQuotes.BUCKET noDataFile
+        File.Delete noDataFile
+        printfn $"{root} fixed."
+        finished <- true
+      } |> Async.Start
+      while not finished do Async.Sleep 1000 |> Async.RunSynchronously
+      printfn $"perc good: %0.2f{100. * (float good / float (good + bad))}"
+      Directory.Delete root)
