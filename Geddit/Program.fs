@@ -78,7 +78,7 @@ seq { 0..(endDay-startDay).Days - 1 }
           while retry do
             match OptionTradeQuotes.reqAndConcat (SecurityDescrip.Option c) |> Async.RunSynchronously with
             | RspStatus.Err err ->
-              if err.ErrType = "PERMISSION"
+              if err.ErrType = "PERMISSION" || err.ErrType = "INVALID_PARAMS"
               then
                 finishedSuccessfully ()
                 discord.SendNotification $"getContract1:\n{c}\n{err}" |> Async.Start
