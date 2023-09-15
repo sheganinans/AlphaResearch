@@ -99,21 +99,20 @@ let go () =
         |> List.choose id
         |> Map.ofList
       let job = ds |> Seq.map (fun d -> map |> Map.tryFind d) |> Seq.choose id
-      job |> PSeq.iter (fun f -> downloadFile f StockTradeQuotes.BUCKET f)
-      job
-      |> PSeq.map setupFile
-      |> PSeq.choose id
-      |> Seq.concat
-      |> Seq.chunkBySize 50_000
-      |> Seq.iter (fun c ->
-        c
-        |> i.WriteToServerAsync
-        |> Async.AwaitTask
-        |> Async.RunSynchronously)
-      try
+      if job |> Seq.length > 0
+      then
+        job |> PSeq.iter (fun f -> downloadFile f StockTradeQuotes.BUCKET f)
+        job
+        |> PSeq.map setupFile
+        |> PSeq.choose id
+        |> Seq.iter (fun c ->
+          printfn "upload to ck"
+          c
+          |> i.WriteToServerAsync
+          |> Async.AwaitTask
+          |> Async.RunSynchronously)
         while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
-        Directory.Delete (root, true)
-      with err -> printfn $"{err}"))
+        Directory.Delete (root, true)))
   
 let mkSql (agg : int) =
   let mkBlock (e : string) (n: string) =
