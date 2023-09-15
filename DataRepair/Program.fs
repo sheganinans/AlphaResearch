@@ -49,6 +49,7 @@ let ds =
 chunked ()
 |> PSeq.iter (fun job ->
   let root = job[0].Key.Split('/')[0]
+  printfn $"{root}"
   let noData = 
     match job |> List.tryFind (fun s -> s.Key.Contains "nodata.txt") with
     | None -> Set.empty

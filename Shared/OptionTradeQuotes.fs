@@ -12,7 +12,7 @@ let toReq (sec : SecurityDescrip) =
   | Option d ->
     let ds = $"%04i{d.Day.Year}%02i{d.Day.Month}%02i{d.Day.Day}"
     $"http://127.0.0.1:25510/hist/option/trade_quote?root={d.Root}&start_date={ds}&end_date={ds}&strike={d.Strike}&exp={d.Exp}&right={d.Right}"
-  | _ -> raise (Exception "OptionTradeQUotes.toReq: this should never happen")
+  | _ -> raise (Exception "OptionTradeQuotes.toReq: this should never happen")
   
 let reqAndConcat (sec : SecurityDescrip) =
   extract
