@@ -102,12 +102,11 @@ let go () =
       job
       |> PSeq.map setupFile
       |> PSeq.choose id
-      |> PSeq.concat
-      |> fun c ->
+      |> Seq.iter (fun c ->
         c
         |> i.WriteToServerAsync
         |> Async.AwaitTask
-        |> Async.RunSynchronously
+        |> Async.RunSynchronously)
       try
         while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
         Directory.Delete (root, true)
