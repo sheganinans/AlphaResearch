@@ -166,4 +166,5 @@ group by ticker, ts
 order by ticker, ts
 limit 20;"""
   
-printfn $"{mkSql 15}"
+//printfn $"{mkSql 15}"
+go ()
