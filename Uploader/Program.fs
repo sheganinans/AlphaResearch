@@ -39,6 +39,8 @@ let ds =
 let pw = Environment.GetEnvironmentVariable "CK_PW"
 
 type private SyncErr = class end
+type private SyncUpload = class end
+
 let go () =
   let finishedSet =
     try File.ReadLines "./finished.txt" |> Set.ofSeq
@@ -62,7 +64,6 @@ let go () =
         use ms = new MemoryStream ()
         source.CopyTo ms
         source.Close ()
-        s.TryRemove f |> ignore
         File.Delete f
         use file = new ParquetFileReader (ms)
         use rowGroup = file.RowGroup 0
@@ -85,10 +86,23 @@ let go () =
         |> Array.transpose
         |> Some
       with err ->
-        s.TryRemove f |> ignore
         lock typeof<SyncErr> (fun () -> errSw.WriteLine f; errSw.Flush ())
         printfn $"{err}"
         None
+
+    let uploadMailbox = MailboxProcessor.Start (fun inbox ->
+      async {
+        while true do
+          let! ((f, msg) : string * obj [] [] option) = inbox.Receive ()
+          match msg with
+          | None -> ()
+          | Some msg ->
+            msg
+            |> i.WriteToServerAsync
+            |> Async.AwaitTask
+            |> Async.RunSynchronously
+          s.TryRemove f |> ignore
+      })
 
     chunked ()
     |> Seq.iter (fun chunk ->
@@ -110,15 +124,9 @@ let go () =
         if job |> Seq.length > 0
         then
           job
-          |> Seq.iter (fun f ->
-            match setupFile f with
-            | None -> ()
-            | Some c ->
-              printfn "upload to ck"
-              c
-              |> i.WriteToServerAsync
-              |> Async.AwaitTask
-              |> Async.RunSynchronously)
+          |> PSeq.iter (fun f ->
+            printfn "upload to ck"
+            uploadMailbox.Post (f, setupFile f))
           while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
           finishedSw.WriteLine root
           finishedSw.Flush ()
