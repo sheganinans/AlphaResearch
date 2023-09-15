@@ -9,6 +9,7 @@ open K4os.Compression.LZ4.Streams
 open ParquetSharp
 
 open Shared
+open Shared.ThetaData
 open Shared.Wasabi
 
 let chunked () =
@@ -37,16 +38,28 @@ let ds =
   |> Set.ofSeq
 
 
-using (new ClickHouseConnection ("Host=...;...")) (fun c ->
+using (new ClickHouseConnection ("Host=127.0.0.1")) (fun c ->
   use i = new ClickHouseBulkCopy (c)
   i.DestinationTableName <- "db.tbl"
   i.BatchSize <- 100_000
-  
+
   let uploadFile (f : string) =
     printfn $"{f}"
     let ticker = f.Split('/')[0]
-    using (LZ4Stream.Decode (File.OpenRead f)) (fun source ->
-      using (new ParquetFileReader (source)) (fun file ->
+    printfn "lz4"
+    use source = LZ4Stream.Decode (File.OpenRead f)
+    if source.Length = -1
+    then
+      source.Close ()
+      File.Delete f
+      let d = ((f.Split('/')[1]).Split('.')[0]).Split '-' |> Array.map int
+      let day = DateTime (d[0], d[1], d[2])
+      match StockTradeQuotes.reqAndConcat ticker day with
+      | _ -> ()
+    else
+      printfn $"parquet: {source.Length}"
+      using (new ParquetFileReader (source, leaveOpen = true)) (fun file ->
+        printfn "row group"
         use rowGroup = file.RowGroup 0
         let ts = Array.create (int rowGroup.MetaData.NumRows) (box ticker)
         let c0 = rowGroup.Column(0).LogicalReader<DateTime>().ReadAll (int rowGroup.MetaData.NumRows) |> Array.map box
@@ -67,7 +80,7 @@ using (new ClickHouseConnection ("Host=...;...")) (fun c ->
         |> Array.transpose
         |> i.WriteToServerAsync
         |> Async.AwaitTask
-        |> Async.RunSynchronously))
+        |> Async.RunSynchronously)
 
   chunked ()
   |> Seq.iter (fun chunk ->

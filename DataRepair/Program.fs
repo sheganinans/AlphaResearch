@@ -22,9 +22,9 @@ let chunked () =
       then
         yield acc
         currSym <- objToSym o
-        acc <- [o.Key]
+        acc <- [o]
       else
-        acc <- o.Key :: acc
+        acc <- o :: acc
   }
 
 let startDay = DateTime (2018, 01, 01)
@@ -48,11 +48,12 @@ let ds =
 
 chunked ()
 |> PSeq.iter (fun job ->
-  let root = job[0].Split('/')[0]
+  let root = job[0].Key.Split('/')[0]
   let noData = 
-    match job |> List.tryFind (fun s -> s.Contains "nodata.txt") with
+    match job |> List.tryFind (fun s -> s.Key.Contains "nodata.txt") with
     | None -> Set.empty
     | Some f ->
+      let f = f.Key
       Wasabi.downloadFile f BUCKET f
       let ret =
         File.ReadLines f
@@ -64,10 +65,10 @@ chunked ()
       ret
   let job =
     job
-    |> List.filter (fun s -> (not <| s.Contains "nodata.txt") && (not <| s.Contains ".err"))
+    |> List.filter (fun s -> (not <| s.Key.Contains "nodata.txt") && (not <| s.Key.Contains ".err") && s.Size <> 0)
     |> List.map (fun s ->
       try
-        let d = ((s.Split('/')[1]).Split('.')[0]).Split '-' |> Array.map int
+        let d = ((s.Key.Split('/')[1]).Split('.')[0]).Split '-' |> Array.map int
         Some <| DateTime (d[0], d[1], d[2])
       with _ -> None)
     |> List.choose id
