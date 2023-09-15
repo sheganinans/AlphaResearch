@@ -1,12 +1,13 @@
 ﻿open System
 open System.IO
+
 open Amazon.S3.Model
 open ClickHouse.Client.ADO
 open ClickHouse.Client.Copy
-
 open FSharp.Collections.ParallelSeq
 open K4os.Compression.LZ4.Streams
 open ParquetSharp
+
 open Shared
 open Shared.Wasabi
 
