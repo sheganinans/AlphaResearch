@@ -102,6 +102,8 @@ let go () =
       job
       |> PSeq.map setupFile
       |> PSeq.choose id
+      |> PSeq.concat
+      |> Seq.chunkBySize 50_000
       |> Seq.iter (fun c ->
         c
         |> i.WriteToServerAsync
