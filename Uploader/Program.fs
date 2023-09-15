@@ -79,6 +79,7 @@ let go () =
         |> Array.transpose
         |> Some
       with err ->
+        s.TryRemove f |> ignore
         lock typeof<SyncErr> (fun () -> errSw.WriteLine f; errSw.Flush ())
         printfn $"{err}"
         None
