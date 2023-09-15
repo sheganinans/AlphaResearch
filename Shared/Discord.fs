@@ -13,8 +13,10 @@ type Discord () =
   let channel = uint64 <| Environment.GetEnvironmentVariable "DISCORD_CHANNEL"
   do
     printfn "logging into discord."
-    discord.LoginAsync (TokenType.Bot, token) |> Async.AwaitTask |> Async.RunSynchronously
-    discord.StartAsync () |> Async.AwaitTask |> Async.RunSynchronously
+    task {
+      do! discord.LoginAsync (TokenType.Bot, token)
+      do! discord.StartAsync ()
+    } |> Async.AwaitTask |> Async.RunSynchronously
 
   member this.SendAlert (m : string) =
     async {
@@ -30,7 +32,7 @@ type Discord () =
       do!
         discord.GetGuild(guild).GetTextChannel(channel).SendMessageAsync $"```{m[..1800]}\n```"
         |> Async.AwaitTask
-        |> Async.Ignore   
+        |> Async.Ignore
     }
 
 type private SyncRoot = class end
