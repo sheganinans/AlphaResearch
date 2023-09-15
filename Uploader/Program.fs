@@ -40,10 +40,14 @@ let pw = Environment.GetEnvironmentVariable "CK_PW"
 
 type private SyncErr = class end
 let go () =
+  let finishedSet =
+    try File.ReadLines "./finished.txt" |> Set.ofSeq
+    with _ -> Set.empty
   using (new ClickHouseConnection ($"Host=127.0.0.1;Password={pw}")) (fun c ->
     use errSw = new StreamWriter ("./errs.txt")
+    use finishedSw = new StreamWriter ("./finished.txt")
     c.Open ()
-    
+
     use i = new ClickHouseBulkCopy (c)
     i.DestinationTableName <- "thetadata_stock_trade_quotes"
     i.BatchSize <- 100_000
@@ -87,32 +91,37 @@ let go () =
     chunked ()
     |> Seq.iter (fun chunk ->
       let root = chunk[0].Split('/')[0]
-      printfn $"{root}"
-      let map =
-        chunk
-        |> List.filter (fun s -> (not <| s.Contains "nodata.txt") && (not <| s.Contains ".err"))
-        |> List.map (fun s ->
-          try
-            let d = ((s.Split('/')[1]).Split('.')[0]).Split '-' |> Array.map int
-            Some <| (DateTime (d[0], d[1], d[2]), s)
-          with _ -> None)
-        |> List.choose id
-        |> Map.ofList
-      let job = ds |> Seq.map (fun d -> map |> Map.tryFind d) |> Seq.choose id
-      if job |> Seq.length > 0
+      if not <| finishedSet.Contains root
       then
-        job |> PSeq.iter (fun f -> downloadFile f StockTradeQuotes.BUCKET f)
-        job
-        |> PSeq.map setupFile
-        |> PSeq.choose id
-        |> Seq.iter (fun c ->
-          printfn "upload to ck"
-          c
-          |> i.WriteToServerAsync
-          |> Async.AwaitTask
-          |> Async.RunSynchronously)
-        while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
-        Directory.Delete (root, true)))
+        printfn $"{root}"
+        let map =
+          chunk
+          |> List.filter (fun s -> (not <| s.Contains "nodata.txt") && (not <| s.Contains ".err"))
+          |> List.map (fun s ->
+            try
+              let d = ((s.Split('/')[1]).Split('.')[0]).Split '-' |> Array.map int
+              Some <| (DateTime (d[0], d[1], d[2]), s)
+            with _ -> None)
+          |> List.choose id
+          |> Map.ofList
+        let job = ds |> Seq.map (fun d -> map |> Map.tryFind d) |> Seq.choose id
+        if job |> Seq.length > 0
+        then
+          job
+          |> PSeq.map (fun f ->
+            downloadFile f StockTradeQuotes.BUCKET f
+            setupFile f)
+          |> PSeq.choose id
+          |> Seq.iter (fun c ->
+            printfn "upload to ck"
+            c
+            |> i.WriteToServerAsync
+            |> Async.AwaitTask
+            |> Async.RunSynchronously)
+          while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
+          finishedSw.WriteLine root
+          finishedSw.Flush ()
+          Directory.Delete (root, true)))
   
 let mkSql (agg : int) =
   let mkBlock (e : string) (n: string) =
