@@ -56,12 +56,14 @@ let go () =
     let setupFile (f : string) =
       try
         s.TryAdd (f, ()) |> ignore
+        downloadFile f StockTradeQuotes.BUCKET f
         let ticker = f.Split('/')[0]
         use source = LZ4Stream.Decode (File.OpenRead f)
         use ms = new MemoryStream ()
         source.CopyTo ms
         source.Close ()
         s.TryRemove f |> ignore
+        File.Delete f
         use file = new ParquetFileReader (ms)
         use rowGroup = file.RowGroup 0
         let ts = Array.create (int rowGroup.MetaData.NumRows) (box ticker)
@@ -108,16 +110,15 @@ let go () =
         if job |> Seq.length > 0
         then
           job
-          |> PSeq.map (fun f ->
-            downloadFile f StockTradeQuotes.BUCKET f
-            setupFile f)
-          |> PSeq.choose id
-          |> Seq.iter (fun c ->
-            printfn "upload to ck"
-            c
-            |> i.WriteToServerAsync
-            |> Async.AwaitTask
-            |> Async.RunSynchronously)
+          |> Seq.iter (fun f ->
+            match setupFile f with
+            | None -> ()
+            | Some c ->
+              printfn "upload to ck"
+              c
+              |> i.WriteToServerAsync
+              |> Async.AwaitTask
+              |> Async.RunSynchronously)
           while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
           finishedSw.WriteLine root
           finishedSw.Flush ()
