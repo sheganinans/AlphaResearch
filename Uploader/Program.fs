@@ -68,6 +68,7 @@ let go () =
         use ms = new MemoryStream ()
         source.CopyTo ms
         source.Close ()
+        source.Dispose ()
         File.Delete f
         use file = new ParquetFileReader (ms)
         use rowGroup = file.RowGroup 0
@@ -86,6 +87,8 @@ let go () =
         let c10 = rowGroup.Column(10).LogicalReader<float>().ReadAll (int rowGroup.MetaData.NumRows) |> Array.map (float32 >> box)
         let c11 = rowGroup.Column(11).LogicalReader<byte>().ReadAll (int rowGroup.MetaData.NumRows)
                   |> Array.map (fun e -> (e |> int |> enum<Exchange.Exchange>).ToString () |> box)
+        file.Close ()
+        file.Dispose ()
         [| ts; c0; c2; c3; c4; c5; c6; c7; c8; c9; c10; c11 |]
         |> Array.transpose
         |> Some
