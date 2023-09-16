@@ -10,6 +10,7 @@ open K4os.Compression.LZ4.Streams
 open ParquetSharp
 
 open Shared
+open Shared.Discord
 open Shared.Wasabi
 
 let chunked () =
@@ -126,6 +127,7 @@ let go () =
       if not <| finishedSet.Contains root
       then
         printfn $"{root}"
+        discord.SendNotification $"{root}" |> Async.Start
         let map =
           chunk
           |> List.filter (fun s -> (not <| s.Contains "nodata.txt") && (not <| s.Contains ".err"))
