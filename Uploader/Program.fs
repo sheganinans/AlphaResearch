@@ -41,6 +41,10 @@ let pw = Environment.GetEnvironmentVariable "CK_PW"
 type private SyncErr = class end
 type private SyncUpload = class end
 
+type Msg =
+  | Clear
+  | Data of string * obj [] [] option
+
 let go () =
   let finishedSet =
     try File.ReadLines "./finished.txt" |> Set.ofSeq
@@ -92,16 +96,26 @@ let go () =
 
     let uploadMailbox = MailboxProcessor.Start (fun inbox ->
       async {
+        let mutable acc = [||]
+        let write () =
+          printfn "upload to ck"
+          acc
+          |> i.WriteToServerAsync
+          |> Async.AwaitTask
+          |> Async.RunSynchronously
+          acc <- [||]
+
         while true do
-          let! ((f, msg) : string * obj [] [] option) = inbox.Receive ()
+          let! (msg : Msg) = inbox.Receive ()
           match msg with
-          | None -> ()
-          | Some msg ->
-            msg
-            |> i.WriteToServerAsync
-            |> Async.AwaitTask
-            |> Async.RunSynchronously
-          s.TryRemove f |> ignore
+          | Clear -> write ()
+          | Data (f, msg) ->
+            match msg with
+            | None -> ()
+            | Some msg ->
+              acc <- Array.append acc msg
+              if acc.Length > 50_000 then write ()
+            s.TryRemove f |> ignore
       })
 
     chunked ()
@@ -123,11 +137,9 @@ let go () =
         let job = ds |> Seq.map (fun d -> map |> Map.tryFind d) |> Seq.choose id
         if job |> Seq.length > 0
         then
-          job
-          |> PSeq.iter (fun f ->
-            printfn "upload to ck"
-            uploadMailbox.Post (f, setupFile f))
+          job |> PSeq.iter (fun f -> uploadMailbox.Post (Data (f, setupFile f)))
           while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
+          uploadMailbox.Post Clear
           finishedSw.WriteLine root
           finishedSw.Flush ()
           Directory.Delete (root, true)))
