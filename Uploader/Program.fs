@@ -140,7 +140,9 @@ let go () =
         let job = ds |> Seq.map (fun d -> map |> Map.tryFind d) |> Seq.choose id
         if job |> Seq.length > 0
         then
-          job |> PSeq.iter (fun f -> uploadMailbox.Post (Data (f, setupFile f)))
+          job |> PSeq.iter (fun f ->
+            while s.Count > 24 do Async.Sleep 100 |> Async.RunSynchronously
+            uploadMailbox.Post (Data (f, setupFile f)))
           while s.Count <> 0 do Async.Sleep 100 |> Async.RunSynchronously
           uploadMailbox.Post Clear
           finishedSw.WriteLine root
