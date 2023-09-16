@@ -101,7 +101,6 @@ let go () =
       async {
         let mutable acc = [||]
         let write () =
-          printfn "upload to ck"
           acc
           |> i.WriteToServerAsync
           |> Async.AwaitTask
