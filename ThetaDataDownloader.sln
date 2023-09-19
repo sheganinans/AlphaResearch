@@ -12,6 +12,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Uploader", "Uploader\Upload
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DataRepairFiles", "DataRepairFiles\DataRepairFiles.fsproj", "{C243DCF3-4F0B-487C-A1BF-B2829A589800}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Preprocessing", "Preprocessing\Preprocessing.fsproj", "{B821335A-34ED-49CA-A117-5C5B773607B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B821335A-34ED-49CA-A117-5C5B773607B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B821335A-34ED-49CA-A117-5C5B773607B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B821335A-34ED-49CA-A117-5C5B773607B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B821335A-34ED-49CA-A117-5C5B773607B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
