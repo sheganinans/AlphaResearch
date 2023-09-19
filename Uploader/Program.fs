@@ -16,17 +16,19 @@ open Shared.Wasabi
 let chunked () =
   let mutable currSym = ""
   let mutable acc = []
-  let objToSym (o : S3Object) = o.Key.Split('/')[0]
+  let objToSym (o : string) = o.Split('/')[0]
   seq {
-    for o in getWasabiObjs StockTradeQuotes.BUCKET "" do
+    let ls = File.ReadLines "./errs.txt"
+    File.Delete "./errs.txt"
+    for o in ls do
       if currSym = "" then currSym <- objToSym o
       if currSym <> objToSym o
       then
         yield acc
         currSym <- objToSym o
-        acc <- [o.Key]
+        acc <- [o]
       else
-        acc <- o.Key :: acc
+        acc <- o :: acc
   }
 
 let startDay = DateTime (2018, 01, 01)

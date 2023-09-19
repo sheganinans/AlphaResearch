@@ -10,6 +10,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Shared", "Shared\Shared.fsp
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Uploader", "Uploader\Uploader.fsproj", "{BAA6BE94-301F-4111-B7B1-6A1AD70252C7}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DataRepairFiles", "DataRepairFiles\DataRepairFiles.fsproj", "{C243DCF3-4F0B-487C-A1BF-B2829A589800}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{BAA6BE94-301F-4111-B7B1-6A1AD70252C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BAA6BE94-301F-4111-B7B1-6A1AD70252C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BAA6BE94-301F-4111-B7B1-6A1AD70252C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C243DCF3-4F0B-487C-A1BF-B2829A589800}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
