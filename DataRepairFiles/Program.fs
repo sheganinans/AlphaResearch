@@ -10,7 +10,7 @@ let BUCKET = StockTradeQuotes.BUCKET
 
 let s = ConcurrentDictionary<string * DateTime, unit> ()
 
-let HTML_CONCURRENCY = 8
+let HTML_CONCURRENCY = 40
 
 let thetaData = Theta ()
 
@@ -20,6 +20,7 @@ File.ReadLines "./errs.txt"
   let root, f = f[0], f[1]
   let ds = (f.Split('.')[0]).Split '-' |> Array.map int
   let day = DateTime (ds[0], ds[1], ds[2])
+  if not <| Directory.Exists root then Directory.CreateDirectory root |> ignore
   s.TryAdd ((root, day), ()) |> ignore
   while s.Count > HTML_CONCURRENCY do Async.Sleep 10 |> Async.RunSynchronously
   printfn $"{l}"
