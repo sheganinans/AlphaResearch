@@ -29,8 +29,10 @@ File.ReadLines "./errs.txt"
     | RspStatus.Disconnected ->
       thetaData.Reset ()
       do! Async.Sleep 10_000
-    | RspStatus.NoData -> ()
-    | RspStatus.Ok data -> FileOps.saveData (SecurityDescrip.Stock (root, day)) BUCKET data
+    | RspStatus.NoData -> s.TryRemove ((root, day)) |> ignore
+    | RspStatus.Ok data ->
+      FileOps.saveData (SecurityDescrip.Stock (root, day)) BUCKET data
+      s.TryRemove ((root, day)) |> ignore
   } |> Async.Start)
 
 printfn "done!"
