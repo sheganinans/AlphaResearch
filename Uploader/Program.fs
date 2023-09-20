@@ -19,7 +19,6 @@ let chunked () =
   let objToSym (o : string) = o.Split('/')[0]
   seq {
     let ls = File.ReadLines "./errs.txt"
-    File.Delete "./errs.txt"
     for o in ls do
       if currSym = "" then currSym <- objToSym o
       if currSym <> objToSym o
@@ -53,7 +52,7 @@ let go () =
     try File.ReadLines "./finished.txt" |> Set.ofSeq
     with _ -> Set.empty
   using (new ClickHouseConnection ($"Host=127.0.0.1;Password={pw}")) (fun c ->
-    use errSw = new StreamWriter ("./errs.txt")
+    use errSw = new StreamWriter ("./errs.new.txt")
     use finishedSw = new StreamWriter ("./finished.txt")
     c.Open ()
 
