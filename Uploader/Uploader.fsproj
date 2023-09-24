@@ -10,6 +10,7 @@
         <Content Include="sql\stock_trade_quotes.sql" />
         <Content Include="sql\15minagg.sql" />
         <Content Include="sql\option_trade_quotes.sql" />
+        <Content Include="sql\basic_stats.sql" />
     </ItemGroup>
 
     <ItemGroup>

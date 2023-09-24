@@ -16,4 +16,4 @@ create table if not exists thetadata_option_trade_quotes
 , ask_exchange  LowCardinality(String)
 ) engine = MergeTree
 partition by toYYYYMMDD(time_of_trade)
-order by (security, expiration, side, strike, time_of_trade)
+order by (side, security, expiration, strike, time_of_trade)
