@@ -12,6 +12,7 @@
         <Content Include="sql\option_trade_quotes.sql" />
         <Content Include="sql\basic_stats.sql" />
         <Content Include="sql\count.sql" />
+        <Content Include="sql\count_by_day.sql" />
     </ItemGroup>
 
     <ItemGroup>
