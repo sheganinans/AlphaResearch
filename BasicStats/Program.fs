@@ -7,6 +7,7 @@ i.BatchSize <- 100_000
 
 getUniqTickers ()
 |> Seq.iter (fun t ->
+  printfn $"{t}"
   getLogReturns t 1 Minute
   |> Seq.map (fun r -> [| box r.ticker; box r.ts; box r.log_ret |])
   |> i.WriteToServerAsync
