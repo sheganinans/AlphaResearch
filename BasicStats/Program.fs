@@ -26,9 +26,8 @@ let count () =
   |> Seq.iter (fun t ->
     printfn $"{t}"
     let count = 
-      ck.Query<int> $"select count() from thetadata_stock_trade_quotes prewhere ticker == '{t}'"
+      ck.Query<uint64> $"select count() from thetadata_stock_trade_quotes prewhere ticker == '{t}'"
       |> Seq.head
-      |> uint64
     [|[| box t; box count |]|]
     |> i.WriteToServerAsync
     |> Async.AwaitTask
