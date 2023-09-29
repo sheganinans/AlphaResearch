@@ -13,6 +13,11 @@
       <PackageReference Include="ClickHouse.Client" Version="6.7.4" />
       <PackageReference Include="Dapper" Version="2.0.151" />
       <PackageReference Include="FSharp.Collections.ParallelSeq" Version="1.2.0" />
+      <PackageReference Include="Microsoft.ML" Version="3.0.0-preview.23266.6" />
+      <PackageReference Include="Microsoft.ML.AutoML" Version="0.21.0-preview.23266.6" />
+      <PackageReference Include="Microsoft.ML.FastTree" Version="3.0.0-preview.23266.6" />
+      <PackageReference Include="Microsoft.ML.LightGbm" Version="3.0.0-preview.23266.6" />
+      <PackageReference Include="Microsoft.ML.TimeSeries" Version="3.0.0-preview.23266.6" />
     </ItemGroup>
 
     <ItemGroup>
