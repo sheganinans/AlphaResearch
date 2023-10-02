@@ -95,6 +95,45 @@ let nonEmptyDs =
      order by ts"
   |> Array.ofSeq
 
+let getCorr (a : string) (b : string) (d : DateTime) =
+  if a = b
+  then 1.
+  else
+    let d1 = d.AddDays 1.
+    ck.Query<float>
+      $"with
+          '%s{a}' as a,
+          '%s{b}' as b
+        select corr(aq.log_ret, bq.log_ret)
+        from quote_1min_agg as aq
+        join quote_1min_agg as bq
+        on aq.ts = bq.ts
+        where aq.ticker = a
+          and bq.ticker = b
+          and ((toHour(aq.ts) >= 9 and if(toHour(aq.ts) = 9, toMinute(aq.ts) >= 30, true))
+            and toHour(aq.ts) < 16)
+          and aq.ts >= '%04i{d.Year}-%02i{d.Month}-%02i{d.Day}'
+          and aq.ts < '%04i{d1.Year}-%02i{d1.Month}-%02i{d1.Day}'"
+    |> Seq.head
+    
+let insertCorrs () =
+  use c = new ClickHouseBulkCopy (ck)
+  c.DestinationTableName <- "corr"
+  c.BatchSize <- 10_000
+  importantTickers |> Array.iteri (fun i a ->
+    importantTickers |> Array.skip i |> Array.iter (fun b ->
+      printfn $"{a} {b}"
+      let vs =
+        nonEmptyDs
+        |> PSeq.map (fun d -> [|box a; box b; box d; box (getCorr a b d)|])
+      let vs = vs |> PSeq.append (vs |> PSeq.map (fun a -> [| a[1]; a[0]; a[2]; a[3] |]))
+      vs
+      |> c.WriteToServerAsync
+      |> Async.AwaitTask
+      |> Async.RunSynchronously))
+
+insertCorrs ()
+
 let nonEmptyDsTest =
   let d1 = initTrainSplitDay
   ck.Query<DateTime>
@@ -161,7 +200,7 @@ let insertFeatures () =
       |> Map.ofSeq
     [|0 .. importantTickers.Length - 1|]
     |> Array.map (fun i -> m[i])
-    |> Array.transpose
+    |> Array.transpose  
     |> Array.map (fun row -> [|
       box UNIT
       box INTERVAL
@@ -171,5 +210,3 @@ let insertFeatures () =
     |> i.WriteToServerAsync
     |> Async.AwaitTask
     |> Async.RunSynchronously)
-  
-insertFeatures ()

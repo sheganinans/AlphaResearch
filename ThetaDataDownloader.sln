@@ -14,6 +14,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "DataRepairFiles", "DataRepa
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Preprocessing", "Preprocessing\Preprocessing.fsproj", "{B821335A-34ED-49CA-A117-5C5B773607B1}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BasicStats", "BasicStats\BasicStats.fsproj", "{EB6B957E-BEC6-4E69-8BD8-556AD2332554}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{B821335A-34ED-49CA-A117-5C5B773607B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B821335A-34ED-49CA-A117-5C5B773607B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B821335A-34ED-49CA-A117-5C5B773607B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB6B957E-BEC6-4E69-8BD8-556AD2332554}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB6B957E-BEC6-4E69-8BD8-556AD2332554}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB6B957E-BEC6-4E69-8BD8-556AD2332554}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB6B957E-BEC6-4E69-8BD8-556AD2332554}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
